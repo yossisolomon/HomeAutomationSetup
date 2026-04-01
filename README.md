@@ -13,6 +13,10 @@ A self-hosted home automation stack built on [Home Assistant](https://www.home-a
 | **Node-RED** | Visual flow editor for automations and integrations | `1880` |
 | **ESPHome** | Firmware builder & OTA updater for ESP32/ESP8266 devices | `6052` (host network) |
 | **Portainer** | Web-based Docker management UI | `9000` (HTTP), `9443` (HTTPS) |
+| **Prometheus** | Time-series metrics collection and alerting | `9090` |
+| **Grafana** | Metrics dashboards and visualization | `3000` |
+| **Node Exporter** | Host-level metrics (CPU, memory, disk, network) | `9100` |
+| **cAdvisor** | Per-container resource usage metrics | `8080` |
 
 ---
 
@@ -58,8 +62,14 @@ docker compose up -d
 │   └── data/                   # Node-RED flows & settings (auto-created)
 ├── esphome/
 │   └── config/                 # ESPHome device YAML files (auto-created)
-└── portainer/
-    └── data/                   # Portainer state (auto-created)
+├── portainer/
+│   └── data/                   # Portainer state (auto-created)
+├── prometheus/
+│   ├── config/
+│   │   └── prometheus.yml      # Scrape targets and global settings
+│   └── data/                   # TSDB storage (auto-created)
+└── grafana/
+    └── data/                   # Dashboards, data sources, plugins (auto-created)
 ```
 
 ---
@@ -79,12 +89,28 @@ Install the [node-red-contrib-home-assistant-websocket](https://flows.nodered.or
 ### ESPHome
 Open `http://<host-ip>:6052` to create and flash firmware for DIY ESP devices.  Once flashed, Home Assistant will auto-discover them via mDNS.
 
+### Monitoring (Prometheus + Grafana)
+1. Open Grafana at `http://<host-ip>:3000` (default login: `admin` / `admin` — change on first login).
+2. Add a **Prometheus** data source: **Configuration → Data Sources → Add → Prometheus** with URL `http://prometheus:9090`.
+3. Import community dashboards for quick results:
+   - **Node Exporter Full** — Dashboard ID `1860`
+   - **Docker / cAdvisor** — Dashboard ID `14282`
+
+   Go to **Dashboards → Import**, enter the ID, select the Prometheus data source, and click **Import**.
+4. Prometheus UI is available at `http://<host-ip>:9090` for ad-hoc queries.
+
 ---
 
 ## Security Notes
 
 - **Mosquitto** is configured with `allow_anonymous true` for ease of initial setup. For production, generate a password file (`mosquitto_passwd`) and set `allow_anonymous false`.
 - **Portainer** prompts you to create an admin account on first visit — do this immediately.
+- **Grafana** defaults to `admin`/`admin`. Override before first startup by creating a `.env` file in the repo root:
+  ```
+  GRAFANA_ADMIN_USER=admin
+  GRAFANA_ADMIN_PASSWORD=<your-strong-password>
+  ```
+  The `.env` file is already excluded from version control by `.gitignore`.
 - Place all services behind a reverse proxy (e.g., Nginx Proxy Manager) with HTTPS before exposing them to the internet.
 
 ---

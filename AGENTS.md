@@ -33,6 +33,11 @@ This repository manages a self-hosted home automation stack.  Any AI agent (Copi
 ### ESPHome
 - Device YAML files live in `esphome/config/`.  Commit device configs; do not commit compiled firmware binaries.
 
+### Prometheus & Grafana
+- Prometheus configuration lives in `prometheus/config/prometheus.yml`.  Commit this file; do not commit the TSDB data directory (`prometheus/data/`).
+- Grafana persistent data (dashboards, data sources) is stored in `grafana/data/` and excluded from version control.
+- When adding a new exporter or service to scrape, add a corresponding `scrape_configs` entry in `prometheus.yml`.
+
 ---
 
 ## Making Changes

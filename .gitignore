@@ -1,17 +1,22 @@
-# ── Home Assistant ────────────────────────────────────────────────────────────
-# Never commit your secrets file
-config/secrets.yaml
+# ── Secrets — never commit credentials at any path ────────────────────────────
+secrets.yaml
+.env
 
-# Home Assistant database and cache
-config/home-assistant_v2.db
-config/home-assistant_v2.db-shm
-config/home-assistant_v2.db-wal
+# ── Databases — large, constantly changing, not useful in source control ──────
+*.db
+*.db-shm
+*.db-wal
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Home Assistant ────────────────────────────────────────────────────────────
 config/.storage/
 
 # ── Mosquitto ──────────────────────────────────────────────────────────────────
 mosquitto/data/
 mosquitto/log/
-# Password file contains hashed credentials — exclude from source control
+# Password file contains hashed credentials
 mosquitto/config/passwd
 
 # ── Node-RED ───────────────────────────────────────────────────────────────────
@@ -24,9 +29,14 @@ esphome/config/.esphome/
 # ── Portainer ──────────────────────────────────────────────────────────────────
 portainer/data/
 
+# ── Prometheus ─────────────────────────────────────────────────────────────────
+prometheus/data/
+
+# ── Grafana ────────────────────────────────────────────────────────────────────
+grafana/data/
+
 # ── OS / Editor ───────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-.env
 *.swp
 *.swo

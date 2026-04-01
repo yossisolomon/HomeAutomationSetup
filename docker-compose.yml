@@ -71,3 +71,76 @@ services:
       - "9000:9000"
       - "9443:9443"
     restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Monitoring Stack — Prometheus + Grafana + Exporters
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  # ─── Prometheus ──────────────────────────────────────────────────────────────
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v3.2.1
+    volumes:
+      - ./prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    depends_on:
+      - node-exporter
+      - cadvisor
+
+  # ─── Grafana ─────────────────────────────────────────────────────────────────
+  grafana:
+    container_name: grafana
+    image: grafana/grafana-oss:11.6.0
+    volumes:
+      - ./grafana/data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}   # Override in .env
+    depends_on:
+      - prometheus
+
+  # ─── Node Exporter (host metrics) ───────────────────────────────────────────
+  # Exposes CPU, memory, disk, and network metrics from the Docker host.
+  node-exporter:
+    container_name: node-exporter
+    image: prom/node-exporter:v1.9.0
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+  # ─── cAdvisor (Docker container metrics) ────────────────────────────────────
+  # Exposes per-container CPU, memory, network, and I/O metrics.
+  cadvisor:
+    container_name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
