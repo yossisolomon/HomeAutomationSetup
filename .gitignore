@@ -1,0 +1,42 @@
+# ── Secrets — never commit credentials at any path ────────────────────────────
+secrets.yaml
+.env
+
+# ── Databases — large, constantly changing, not useful in source control ──────
+*.db
+*.db-shm
+*.db-wal
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Home Assistant ────────────────────────────────────────────────────────────
+config/.storage/
+
+# ── Mosquitto ──────────────────────────────────────────────────────────────────
+mosquitto/data/
+mosquitto/log/
+# Password file contains hashed credentials
+mosquitto/config/passwd
+
+# ── Node-RED ───────────────────────────────────────────────────────────────────
+nodered/data/
+
+# ── ESPHome ────────────────────────────────────────────────────────────────────
+# Compiled firmware binaries
+esphome/config/.esphome/
+
+# ── Portainer ──────────────────────────────────────────────────────────────────
+portainer/data/
+
+# ── Prometheus ─────────────────────────────────────────────────────────────────
+prometheus/data/
+
+# ── Grafana ────────────────────────────────────────────────────────────────────
+grafana/data/
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
