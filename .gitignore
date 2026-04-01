@@ -1,0 +1,32 @@
+# ── Home Assistant ────────────────────────────────────────────────────────────
+# Never commit your secrets file
+config/secrets.yaml
+
+# Home Assistant database and cache
+config/home-assistant_v2.db
+config/home-assistant_v2.db-shm
+config/home-assistant_v2.db-wal
+config/.storage/
+
+# ── Mosquitto ──────────────────────────────────────────────────────────────────
+mosquitto/data/
+mosquitto/log/
+# Password file contains hashed credentials — exclude from source control
+mosquitto/config/passwd
+
+# ── Node-RED ───────────────────────────────────────────────────────────────────
+nodered/data/
+
+# ── ESPHome ────────────────────────────────────────────────────────────────────
+# Compiled firmware binaries
+esphome/config/.esphome/
+
+# ── Portainer ──────────────────────────────────────────────────────────────────
+portainer/data/
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.env
+*.swp
+*.swo

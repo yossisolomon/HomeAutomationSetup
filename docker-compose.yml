@@ -1,0 +1,73 @@
+services:
+
+  # ─── Home Assistant ──────────────────────────────────────────────────────────
+  # privileged: true is recommended by the upstream project to allow HA access to
+  # Bluetooth adapters, USB Z-Wave/Zigbee sticks, and other hardware. If you only
+  # use network-based integrations you can remove it and add specific `devices:`
+  # entries instead.
+  homeassistant:
+    container_name: homeassistant
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+      - /sys/class/power_supply:/sys/class/power_supply:ro
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    depends_on:
+      - mosquitto
+
+  # ─── Mosquitto MQTT Broker ───────────────────────────────────────────────────
+  mosquitto:
+    container_name: mosquitto
+    image: eclipse-mosquitto:2.0
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    ports:
+      - "1883:1883"   # MQTT
+      - "9001:9001"   # MQTT over WebSockets
+    restart: unless-stopped
+
+  # ─── Node-RED ─────────────────────────────────────────────────────────────────
+  nodered:
+    container_name: nodered
+    image: nodered/node-red:4
+    volumes:
+      - ./nodered/data:/data
+    ports:
+      - "1880:1880"
+    restart: unless-stopped
+    environment:
+      - TZ=America/New_York  # Change to your timezone
+
+  # ─── ESPHome ──────────────────────────────────────────────────────────────────
+  # Uses host networking so it can discover ESP devices via mDNS.
+  # Dashboard is available at http://<host-ip>:6052
+  # privileged: true is required for USB serial access when flashing ESP devices
+  # directly from this host. If you never flash over USB, you can remove it and
+  # instead add only the specific device under `devices:` (e.g. /dev/ttyUSB0).
+  esphome:
+    container_name: esphome
+    image: ghcr.io/esphome/esphome:stable
+    volumes:
+      - ./esphome/config:/config
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+
+  # ─── Portainer (Docker Management UI) ────────────────────────────────────────
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:2.21.5
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./portainer/data:/data
+    ports:
+      - "9000:9000"
+      - "9443:9443"
+    restart: unless-stopped
