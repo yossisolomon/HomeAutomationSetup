@@ -35,7 +35,7 @@ services:
   # ─── Node-RED ─────────────────────────────────────────────────────────────────
   nodered:
     container_name: nodered
-    image: nodered/node-red:4
+    image: nodered/node-red:latest
     volumes:
       - ./nodered/data:/data
     ports:
