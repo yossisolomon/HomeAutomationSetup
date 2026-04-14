@@ -95,22 +95,39 @@ services:
       - cadvisor
 
   # ─── Grafana ─────────────────────────────────────────────────────────────────
+  # SMTP (email alerts): add these to ~/homeassistant/.env to enable:
+  #   GF_SMTP_ENABLED=true
+  #   GF_SMTP_PASSWORD=<gmail-app-password>   # myaccount.google.com/apppasswords
   grafana:
     container_name: grafana
     image: grafana/grafana-oss:11.6.0
     volumes:
       - ./grafana/data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
     ports:
       - "3000:3000"
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # allows reaching HA webhook at host:8123
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}   # Override in .env
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      # SMTP — defaults are pre-filled for Gmail; only password is required in .env
+      - GF_SMTP_ENABLED=${GF_SMTP_ENABLED:-false}
+      - GF_SMTP_HOST=${GF_SMTP_HOST:-smtp.gmail.com:587}
+      - GF_SMTP_USER=${GF_SMTP_USER:-yosisolomon@gmail.com}
+      - GF_SMTP_PASSWORD=${GF_SMTP_PASSWORD:-}
+      - GF_SMTP_FROM_ADDRESS=${GF_SMTP_FROM_ADDRESS:-yosisolomon@gmail.com}
+      - GF_SMTP_FROM_NAME=${GF_SMTP_FROM_NAME:-blacky Grafana}
+      - GF_SMTP_STARTTLS_POLICY=MandatoryStartTLS
     depends_on:
       - prometheus
 
   # ─── Node Exporter (host metrics) ───────────────────────────────────────────
   # Exposes CPU, memory, disk, and network metrics from the Docker host.
+  # Also reads /var/lib/node_exporter/textfile_collector/ for custom metrics
+  # (e.g. ThinkPad battery status written by ha-battery-mqtt.sh).
   node-exporter:
     container_name: node-exporter
     image: prom/node-exporter:v1.9.0
@@ -118,6 +135,7 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
+      - /var/lib/node_exporter:/var/lib/node_exporter:ro
     ports:
       - "9100:9100"
     restart: unless-stopped
@@ -126,6 +144,7 @@ services:
       - "--path.sysfs=/host/sys"
       - "--path.rootfs=/rootfs"
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+      - "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
 
   # ─── cAdvisor (Docker container metrics) ────────────────────────────────────
   # Exposes per-container CPU, memory, network, and I/O metrics.
