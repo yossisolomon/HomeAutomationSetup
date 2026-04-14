@@ -99,9 +99,13 @@ fix_ext4_label() {
 fix_ext4_label /home           home
 fix_ext4_label /var/lib/docker docker
 
-SWAP_PART=$(lsblk -o NAME,TYPE -l | awk '$2=="part"{print $1}' | while read -r P; do
-    blkid "/dev/$P" 2>/dev/null | grep -q 'TYPE="swap"' && echo "$P"
-done | head -1)
+SWAP_PART=""
+while IFS= read -r P; do
+    if blkid "/dev/$P" 2>/dev/null | grep -q 'TYPE="swap"'; then
+        SWAP_PART="$P"
+        break
+    fi
+done < <(lsblk -o NAME,TYPE -l | awk '$2=="part"{print $1}')
 if [[ -n "$SWAP_PART" ]]; then
     SWAP_LABEL=$(blkid -s LABEL -o value "/dev/$SWAP_PART" 2>/dev/null || true)
     if [[ "$SWAP_LABEL" != "swap" ]]; then
