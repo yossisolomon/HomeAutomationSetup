@@ -1,0 +1,173 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: blacky-system
+    folder: System Alerts
+    interval: 1m
+    rules:
+
+      # ── CPU ──────────────────────────────────────────────────────────────────
+      - uid: blacky_cpu_high
+        title: "High CPU Usage (>85%)"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [85]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "CPU usage above 85% for 5 minutes on blacky"
+        labels:
+          severity: warning
+        isPaused: false
+
+      # ── RAM ───────────────────────────────────────────────────────────────────
+      - uid: blacky_ram_high
+        title: "High Memory Usage (>90%)"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: '(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [90]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Memory usage above 90% for 5 minutes on blacky"
+        labels:
+          severity: warning
+        isPaused: false
+
+      # ── Disk (per partition) ─────────────────────────────────────────────────
+      - uid: blacky_disk_high
+        title: "High Disk Usage (>85%)"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: '(1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs",mountpoint!~"/boot|/run"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|devtmpfs",mountpoint!~"/boot|/run"}) * 100'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [85]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Disk usage above 85% on {{ $labels.mountpoint }} for 10 minutes"
+        labels:
+          severity: warning
+        isPaused: false
+
+      # ── Battery ───────────────────────────────────────────────────────────────
+      # Sourced from node_exporter textfile collector written by ha-battery-mqtt.sh
+      - uid: blacky_battery_low
+        title: "Low Battery (<20%)"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: 'thinkpad_battery_capacity_percent'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [20]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: OK
+        execErrState: OK
+        for: 2m
+        annotations:
+          summary: "ThinkPad battery below 20% — consider plugging in"
+        labels:
+          severity: warning
+        isPaused: false
+
+      - uid: blacky_battery_critical
+        title: "Critical Battery (<10%)"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: 'thinkpad_battery_capacity_percent'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [10]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        annotations:
+          summary: "ThinkPad battery critically low (<10%) — imminent shutdown risk"
+        labels:
+          severity: critical
+        isPaused: false
