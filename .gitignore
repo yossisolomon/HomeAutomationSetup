@@ -40,3 +40,8 @@ grafana/data/
 Thumbs.db
 *.swp
 *.swo
+
+# ── Python compiled artifacts ──────────────────────────────────────────────────
+**/__pycache__/
+**/*.pyc
+**/*.pyo
