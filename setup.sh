@@ -85,14 +85,15 @@ else
 fi
 
 # Fix missing partition labels
+# Use e2label to read the current label (lsblk caches stale values after writes)
 fix_ext4_label() {
     local MOUNTPOINT="$1" LABEL="$2" PART CURRENT
     PART=$(lsblk -o NAME,MOUNTPOINT -l | awk -v mp="$MOUNTPOINT" '$2==mp{print $1}')
     [[ -z "$PART" ]] && return
-    CURRENT=$(lsblk -o NAME,LABEL -l | awk -v p="$PART" '$1==p{print $2}')
-    if [[ -z "$CURRENT" ]]; then
-        info "Setting label '$LABEL' on /dev/$PART..."
-        e2label "/dev/$PART" "$LABEL"
+    CURRENT=$(e2label "/dev/$PART" 2>/dev/null || true)
+    if [[ "$CURRENT" != "$LABEL" ]]; then
+        info "Setting label '$LABEL' on /dev/$PART (was: '${CURRENT:-empty}')..."
+        e2label "/dev/$PART" "$LABEL" || warn "Could not set label on /dev/$PART — non-fatal"
     fi
 }
 fix_ext4_label /home           home
@@ -102,10 +103,10 @@ SWAP_PART=$(lsblk -o NAME,TYPE -l | awk '$2=="part"{print $1}' | while read -r P
     blkid "/dev/$P" 2>/dev/null | grep -q 'TYPE="swap"' && echo "$P"
 done | head -1)
 if [[ -n "$SWAP_PART" ]]; then
-    SWAP_LABEL=$(lsblk -o NAME,LABEL -l | awk -v p="$SWAP_PART" '$1==p{print $2}')
-    if [[ -z "$SWAP_LABEL" ]]; then
+    SWAP_LABEL=$(blkid -s LABEL -o value "/dev/$SWAP_PART" 2>/dev/null || true)
+    if [[ "$SWAP_LABEL" != "swap" ]]; then
         info "Setting label 'swap' on /dev/$SWAP_PART..."
-        swaplabel -L swap "/dev/$SWAP_PART"
+        swaplabel -L swap "/dev/$SWAP_PART" || warn "Could not set swap label — non-fatal"
     fi
 fi
 
