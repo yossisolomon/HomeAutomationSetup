@@ -187,6 +187,20 @@ grep -q "STOP_CHARGE_THRESH_BAT0=${BAT_STOP_THRESH}" /etc/tlp.conf \
 systemctl enable tlp
 tlp start || warn "TLP start returned non-zero (may need reboot for tp-smapi)"
 
+# Suppress ACPI evaluation errors on the T400 console.
+# thinkpad_acpi always probes ACPI battery methods (BCTG, HEKY, etc.) even on
+# models that predate them — they don't exist on the T400 so the kernel logs
+# "evaluate failed" at KERN_WARNING (level 4) on every boot.
+# tp-smapi handles battery control via SMAPI port I/O instead, so these
+# warnings are safe to suppress. loglevel=3 keeps EMERG/ALERT/CRIT on the
+# console and silences WARNING and below (errors still go to the journal).
+info "Suppressing spurious ACPI console noise (loglevel=3 in GRUB)..."
+if ! grep -q "loglevel=3" /etc/default/grub; then
+    sed -i 's/^\(GRUB_CMDLINE_LINUX_DEFAULT="[^"]*\)"/\1 loglevel=3"/' /etc/default/grub
+    update-grub 2>/dev/null || warn "update-grub failed — check /etc/default/grub manually"
+    info "GRUB updated. Console log level takes effect on next reboot."
+fi
+
 # ── 3b. Battery → Prometheus textfile + MQTT heartbeat ───────────────────────
 # The HA battery *sensor* reads /sys directly via the mounted volume (see §8 note).
 # This script handles two separate concerns:
