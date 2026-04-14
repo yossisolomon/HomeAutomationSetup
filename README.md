@@ -1,128 +1,111 @@
 # HomeAutomationSetup
 
-A self-hosted home automation stack built on [Home Assistant](https://www.home-assistant.io/) and several free, open-source companion services, all wired together with Docker Compose.
-
----
+ThinkPad T400 smart-home server — headless Debian 13, running a Docker Compose stack.
 
 ## Services
 
-| Service | Description | Default Port |
+| Service | Port | Description |
 |---|---|---|
-| **Home Assistant** | Core home automation platform | `8123` (host network) |
-| **Mosquitto** | Lightweight MQTT broker for IoT device messaging | `1883` (MQTT), `9001` (WebSocket) |
-| **Node-RED** | Visual flow editor for automations and integrations | `1880` |
-| **ESPHome** | Firmware builder & OTA updater for ESP32/ESP8266 devices | `6052` (host network) |
-| **Portainer** | Web-based Docker management UI | `9000` (HTTP), `9443` (HTTPS) |
-| **Prometheus** | Time-series metrics collection and alerting | `9090` |
-| **Grafana** | Metrics dashboards and visualization | `3000` |
-| **Node Exporter** | Host-level metrics (CPU, memory, disk, network) | `9100` |
-| **cAdvisor** | Per-container resource usage metrics | `8080` |
+| Home Assistant | 8123 | Automation hub |
+| Mosquitto | 1883, 9001 | MQTT broker |
+| Node-RED | 1880 | Flow-based automation |
+| ESPHome | 6052 | ESP device management |
+| Portainer | 9000, 9443 | Docker management UI |
+| Prometheus | 9090 | Metrics collection |
+| Grafana | 3000 | Dashboards & alerts |
+| node-exporter | 9100 | Host metrics |
+| cAdvisor | 8080 | Container metrics |
 
----
+## Bootstrap
 
-## Prerequisites
+### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) ≥ 24
-- [Docker Compose](https://docs.docker.com/compose/install/) ≥ 2 (ships with Docker Desktop)
-- A Linux host (Raspberry Pi, mini-PC, or VM) is recommended for full hardware access.
+- Fresh Debian 13 (Trixie) installation — netinstall with SSH server + standard utilities
+- Ethernet connection (recommended)
+- SSD partitioned as described below (setup.sh verifies this on first run)
 
----
-
-## Quick Start
+### First run
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/yossisolomon/HomeAutomationSetup.git
-cd HomeAutomationSetup
-
-# 2. (Optional) Set your timezone in docker-compose.yml for the Node-RED service
-#    Look for TZ=America/New_York and replace with your timezone.
-
-# 3. Bring everything up
-docker compose up -d
-
-# 4. Open Home Assistant in your browser
-#    http://<host-ip>:8123
+# From another machine, SSH in and run:
+sudo apt-get install -y git
+git clone git@github.com:yossisolomon/HomeAutomationSetup.git ~/homeassistant
+sudo ~/homeassistant/setup.sh
 ```
 
----
-
-## Directory Layout
-
-```
-.
-├── docker-compose.yml          # All service definitions
-├── config/                     # Home Assistant configuration (auto-created on first run)
-├── mosquitto/
-│   ├── config/
-│   │   └── mosquitto.conf      # Mosquitto broker settings
-│   ├── data/                   # Persistent MQTT data (auto-created)
-│   └── log/                    # Broker logs (auto-created)
-├── nodered/
-│   └── data/                   # Node-RED flows & settings (auto-created)
-├── esphome/
-│   └── config/                 # ESPHome device YAML files (auto-created)
-├── portainer/
-│   └── data/                   # Portainer state (auto-created)
-├── prometheus/
-│   ├── config/
-│   │   └── prometheus.yml      # Scrape targets and global settings
-│   └── data/                   # TSDB storage (auto-created)
-└── grafana/
-    └── data/                   # Dashboards, data sources, plugins (auto-created)
-```
-
----
-
-## Connecting Services in Home Assistant
-
-### MQTT (Mosquitto)
-Because Home Assistant uses `network_mode: host` it can reach Mosquitto at `localhost:1883`.
-
-In Home Assistant go to **Settings → Devices & Services → Add Integration → MQTT** and use:
-- **Broker:** `localhost`
-- **Port:** `1883`
-
-### Node-RED
-Install the [node-red-contrib-home-assistant-websocket](https://flows.nodered.org/node/node-red-contrib-home-assistant-websocket) palette inside Node-RED, then configure the HA server URL as `http://<host-ip>:8123`.
-
-### ESPHome
-Open `http://<host-ip>:6052` to create and flash firmware for DIY ESP devices.  Once flashed, Home Assistant will auto-discover them via mDNS.
-
-### Monitoring (Prometheus + Grafana)
-1. Open Grafana at `http://<host-ip>:3000` (default login: `admin` / `admin` — change on first login).
-2. Add a **Prometheus** data source: **Configuration → Data Sources → Add → Prometheus** with URL `http://prometheus:9090`.
-3. Import community dashboards for quick results:
-   - **Node Exporter Full** — Dashboard ID `1860`
-   - **Docker / cAdvisor** — Dashboard ID `14282`
-
-   Go to **Dashboards → Import**, enter the ID, select the Prometheus data source, and click **Import**.
-4. Prometheus UI is available at `http://<host-ip>:9090` for ad-hoc queries.
-
----
-
-## Security Notes
-
-- **Mosquitto** is configured with `allow_anonymous true` for ease of initial setup. For production, generate a password file (`mosquitto_passwd`) and set `allow_anonymous false`.
-- **Portainer** prompts you to create an admin account on first visit — do this immediately.
-- **Grafana** defaults to `admin`/`admin`. Override before first startup by creating a `.env` file in the repo root:
-  ```
-  GRAFANA_ADMIN_USER=admin
-  GRAFANA_ADMIN_PASSWORD=<your-strong-password>
-  ```
-  The `.env` file is already excluded from version control by `.gitignore`.
-- Place all services behind a reverse proxy (e.g., Nginx Proxy Manager) with HTTPS before exposing them to the internet.
-
----
-
-## Stopping the Stack
+After setup completes:
 
 ```bash
-docker compose down
+sudo reboot   # fully loads tp-smapi for battery thresholds
 ```
 
-To also remove all persistent data volumes (⚠️ destructive):
+Then start the stack:
 
 ```bash
-docker compose down -v
+cd ~/homeassistant && docker compose up -d
 ```
+
+### Subsequent runs
+
+`setup.sh` is idempotent — safe to re-run after adding hardware or reinstalling.
+
+## SSD Partition Layout
+
+```
+/boot           ~1GB    ext4   noatime,nodev,nosuid   label: boot
+/               ~28GB   ext4   noatime                label: root
+/var/lib/docker ~56GB   ext4   noatime,nodev,nosuid   label: docker
+/home           ~146GB  ext4   noatime,nodev,nosuid   label: home
+swap            ~2GB    swap                           label: swap
+```
+
+`/var/lib/docker` **must** be on its own dedicated partition — setup.sh will fail if it isn't.
+
+## Backup HDD
+
+Connect via USB before running setup.sh. It will be auto-detected, labelled `ha-backup`, and mounted at `/mnt/backup`.
+
+Add `/mnt/backup:/backup` to the `homeassistant` service volumes in `docker-compose.yml`, then configure HA's native backup to write there: **Settings → System → Backups**.
+
+## Alerts (Grafana)
+
+Pre-provisioned alert rules (CPU >85%, RAM >90%, Disk >85%, Battery low/critical) fire via the `blacky-notify` contact point.
+
+To enable email:
+1. Generate a Gmail App Password: [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+2. Create `~/homeassistant/.env`:
+   ```
+   GF_SMTP_ENABLED=true
+   GF_SMTP_PASSWORD=<your-16-char-app-password>
+   ```
+3. `docker compose restart grafana`
+
+## Monitoring `blacky.local`
+
+After the first successful `docker compose up -d`:
+
+```bash
+# Docker
+docker ps
+docker compose logs -f
+
+# UFW
+sudo ufw status verbose
+
+# Battery
+sudo tlp-stat -b | grep -i thresh
+cat /sys/class/power_supply/BAT0/capacity
+
+# Grafana → http://blacky.local:3000  (admin / admin on first login)
+# Home Assistant → http://blacky.local:8123
+```
+
+## SSH access
+
+From any machine on the local network:
+
+```bash
+ssh yossi@blacky.local
+```
+
+The server advertises via mDNS (`avahi-daemon`) — no static IP needed.
