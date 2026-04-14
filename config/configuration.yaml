@@ -1,0 +1,26 @@
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+# ThinkPad T400 battery sensors
+# Reads directly from the /sys/class/power_supply volume mounted in docker-compose.yml
+sensor:
+  - platform: command_line
+    name: "ThinkPad Battery"
+    command: "cat /sys/class/power_supply/BAT0/capacity"
+    unit_of_measurement: "%"
+    device_class: battery
+    scan_interval: 60
+
+  - platform: command_line
+    name: "ThinkPad Battery Status"
+    command: "cat /sys/class/power_supply/BAT0/status"
+    scan_interval: 60

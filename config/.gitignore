@@ -1,0 +1,20 @@
+# HA runtime / secrets — never commit
+secrets.yaml
+home-assistant_v2.db
+home-assistant.log
+home-assistant.log.1
+.ha_run.lock
+.HA_VERSION
+
+# Auth tokens and private keys
+.storage/auth
+.storage/auth_provider.homeassistant
+.storage/http.auth
+.storage/androidtv_remote_key.pem
+.storage/androidtv_remote_cert.pem
+
+# Runtime caches / deps (reinstalled by HA on start)
+.cache/
+.cloud/
+deps/
+tts/
