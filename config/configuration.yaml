@@ -10,17 +10,19 @@ automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
 
-# ThinkPad T400 battery sensors
-# Reads directly from the /sys/class/power_supply volume mounted in docker-compose.yml
-sensor:
-  - platform: command_line
-    name: "ThinkPad Battery"
-    command: "cat /sys/class/power_supply/BAT0/capacity"
-    unit_of_measurement: "%"
-    device_class: battery
-    scan_interval: 60
+# ThinkPad T400 battery sensors (HA 2022.6+ command_line integration syntax)
+# Reads directly from /sys/class/power_supply mounted in docker-compose.yml
+command_line:
+  - sensor:
+      name: "ThinkPad Battery"
+      unique_id: thinkpad_battery_capacity
+      command: "cat /sys/class/power_supply/BAT0/capacity"
+      unit_of_measurement: "%"
+      device_class: battery
+      scan_interval: 60
 
-  - platform: command_line
-    name: "ThinkPad Battery Status"
-    command: "cat /sys/class/power_supply/BAT0/status"
-    scan_interval: 60
+  - sensor:
+      name: "ThinkPad Battery Status"
+      unique_id: thinkpad_battery_status
+      command: "cat /sys/class/power_supply/BAT0/status"
+      scan_interval: 60
