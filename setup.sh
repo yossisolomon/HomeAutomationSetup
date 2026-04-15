@@ -380,20 +380,26 @@ fi
 systemctl restart sshd
 
 # ── 6. Firewall (UFW) ─────────────────────────────────────────────────────────
-# NOTE: UFW does NOT restrict Docker container ports — Docker writes iptables
-# rules directly, bypassing UFW's FORWARD chain. UFW here only protects
-# host-level services (SSH on port 22). All container ports (8123, 1880, etc.)
-# remain accessible to anyone on the LAN regardless of UFW rules.
-# Your router handles external firewall duties.
-# To restrict container access via UFW, install ufw-docker (adds complexity,
-# generally unnecessary on a trusted home LAN).
-info "Configuring UFW (host-level SSH + mDNS protection)..."
+# Two classes of ports behave differently with UFW:
+#
+# Bridge-networked containers (mosquitto, nodered, grafana, prometheus, etc.):
+#   Docker injects iptables DNAT rules into its own DOCKER chain, bypassing
+#   UFW's INPUT chain. These ports are open on the LAN regardless of UFW rules.
+#
+# Host-networked containers (homeassistant, esphome):
+#   These bind directly to the host network stack — UFW INPUT rules DO apply
+#   and must explicitly allow them, otherwise connections are refused.
+#
+# Your router handles external firewall duties for the LAN.
+info "Configuring UFW..."
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow ssh           # Port 22 — host-level, UFW controls this correctly
-ufw allow 5353/udp      # mDNS — needed for blacky.local resolution
+ufw allow ssh                                        # Port 22
+ufw allow 5353/udp                                   # mDNS — blacky.local
+ufw allow 8123/tcp comment "Home Assistant (host network)"
+ufw allow 6052/tcp comment "ESPHome (host network)"
 ufw --force enable
-info "UFW active. Container ports (8123, 1880, etc.) are open on LAN by design."
+info "UFW active. HA (8123) and ESPHome (6052) explicitly allowed; bridge container ports open via Docker."
 
 # ── 7. Mount backup HDD ───────────────────────────────────────────────────────
 info "Looking for backup HDD (unmounted ext4, non-SSD disk)..."
