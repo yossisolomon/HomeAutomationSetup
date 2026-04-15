@@ -16,8 +16,8 @@ set -euo pipefail
 # ── Configuration ─────────────────────────────────────────────────────────────
 MAIN_USER="yossi"
 HA_DIR="/home/${MAIN_USER}/homeassistant"
-BACKUP_HDD_LABEL="ha-backup"
-BACKUP_MOUNT="/mnt/backup"
+BACKUP_HDD_LABEL="blacky-NAS"
+BACKUP_MOUNT="/mnt/nas"
 
 # Battery thresholds (ThinkPad acts as UPS)
 BAT_START_THRESH=70
@@ -490,7 +490,7 @@ warn "  3. Start the stack:  cd ${HA_DIR} && docker compose up -d"
 warn "  4. Open HA:          http://blacky.local:8123"
 warn "  5. Battery sensor: auto-discovered in HA once Mosquitto is running."
 warn "     Grafana alerts for CPU/RAM/Disk/Battery are pre-provisioned."
-warn "  6. Add to docker-compose homeassistant volumes:  ${BACKUP_MOUNT}:/backup"
+warn "  6. Add to docker-compose homeassistant volumes:  ${BACKUP_MOUNT}/ha:/backup"
 warn "     Then Settings → System → Backups writes directly to the HDD."
 warn "  7. Once SSH key login is confirmed, harden SSH:"
 warn "     Uncomment PermitRootLogin / PasswordAuthentication in /etc/ssh/sshd_config"
