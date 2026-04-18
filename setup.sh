@@ -286,6 +286,91 @@ systemctl enable ha-battery-metrics.timer
 systemctl start  ha-battery-metrics.timer
 info "Battery metrics publisher active (textfile at ${TEXTFILE_DIR}, MQTT heartbeat to blacky/battery/heartbeat)"
 
+# ── 3c. Battery-aware graceful shutdown ──────────────────────────────────────
+# On AC loss: 1-hour timer fires shutdown-if-on-battery.sh (brief outages cancel cleanly).
+# Emergency floor: watchdog shuts down at ≤20% regardless (keeps battery in safe 80-20 range).
+# Boot grace period: watchdog skips first 10 min after boot to avoid boot/shutdown loops.
+info "Installing battery-aware power management..."
+
+cat > /usr/local/bin/on-battery.sh << 'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+logger -t on-battery "AC lost — starting 1-hour shutdown timer"
+systemctl stop battery-shutdown-timer.timer 2>/dev/null || true
+systemd-run --unit=battery-shutdown-timer --on-active=3600 \
+    /usr/local/bin/shutdown-if-on-battery.sh
+logger -t on-battery "Timer started"
+SCRIPT
+chmod +x /usr/local/bin/on-battery.sh
+
+cat > /usr/local/bin/on-ac.sh << 'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+systemctl stop battery-shutdown-timer.timer 2>/dev/null \
+    && logger -t on-ac "AC restored — timer cancelled" \
+    || logger -t on-ac "AC restored (no timer active)"
+SCRIPT
+chmod +x /usr/local/bin/on-ac.sh
+
+cat > /usr/local/bin/shutdown-if-on-battery.sh << 'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+STATUS=$(cat /sys/class/power_supply/BAT0/status 2>/dev/null || echo Unknown)
+[[ "$STATUS" != "Discharging" ]] && { logger -t battery-shutdown "AC present — no shutdown"; exit 0; }
+CAPACITY=$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 100)
+logger -t battery-shutdown "1h on battery (${CAPACITY}%) — shutting down"
+docker stop $(docker ps -q) 2>/dev/null || true
+sync; systemctl poweroff
+SCRIPT
+chmod +x /usr/local/bin/shutdown-if-on-battery.sh
+
+cat > /usr/local/bin/battery-watchdog.sh << 'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+EMERGENCY_THRESHOLD=20
+BOOT_GRACE_SECONDS=600
+while true; do
+    sleep 120
+    UPTIME=$(awk '{print int($1)}' /proc/uptime)
+    [[ "$UPTIME" -lt "$BOOT_GRACE_SECONDS" ]] && continue
+    STATUS=$(cat /sys/class/power_supply/BAT0/status 2>/dev/null || echo Unknown)
+    [[ "$STATUS" == "Discharging" ]] || continue
+    CAPACITY=$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 100)
+    if [[ "$CAPACITY" -le "$EMERGENCY_THRESHOLD" ]]; then
+        logger -t battery-watchdog "EMERGENCY: ${CAPACITY}% — shutting down"
+        docker stop $(docker ps -q) 2>/dev/null || true
+        sync; systemctl poweroff; exit 0
+    fi
+done
+SCRIPT
+chmod +x /usr/local/bin/battery-watchdog.sh
+
+cat > /etc/systemd/system/battery-watchdog.service << 'UNIT'
+[Unit]
+Description=Battery emergency watchdog (shuts down at <=20%)
+After=docker.service
+Wants=docker.service
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/battery-watchdog.sh
+Restart=always
+RestartSec=60
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable battery-watchdog
+systemctl start battery-watchdog
+
+cat > /etc/udev/rules.d/99-power.rules << 'RULES'
+SUBSYSTEM=="power_supply", ATTR{type}=="Mains", ATTR{online}=="0", \
+    RUN+="/bin/systemd-run --no-block /usr/local/bin/on-battery.sh"
+SUBSYSTEM=="power_supply", ATTR{type}=="Mains", ATTR{online}=="1", \
+    RUN+="/bin/systemd-run --no-block /usr/local/bin/on-ac.sh"
+RULES
+udevadm control --reload-rules
+info "Battery-aware power management installed (1h timer + 20% emergency floor)"
+
 # ── 4. Docker Engine (native, no snap, no Colima) ─────────────────────────────
 info "Installing Docker Engine..."
 install -m 0755 -d /etc/apt/keyrings
@@ -400,6 +485,26 @@ ufw allow 8123/tcp comment "Home Assistant (host network)"
 ufw allow 6052/tcp comment "ESPHome (host network)"
 ufw --force enable
 info "UFW active. HA (8123) and ESPHome (6052) explicitly allowed; bridge container ports open via Docker."
+
+# ── 6b. Wake-on-LAN persistence ──────────────────────────────────────────────
+# NIC resets WoL register on reboot; re-apply via oneshot systemd service.
+# To activate: set "Wake on LAN: AC and Battery" in BIOS (Config → Network).
+info "Enabling Wake-on-LAN persistence..."
+cat > /etc/systemd/system/wol-enable.service << 'UNIT'
+[Unit]
+Description=Enable Wake-on-LAN on enp0s25
+After=network.target
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ethtool -s enp0s25 wol g
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable wol-enable
+systemctl start wol-enable || true
+info "WoL enabled — set 'Wake on LAN: AC and Battery' in BIOS to activate after power-off"
 
 # ── 7. Mount backup HDD ───────────────────────────────────────────────────────
 info "Looking for backup HDD (unmounted ext4, non-SSD disk)..."
