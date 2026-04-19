@@ -122,6 +122,8 @@ services:
       - GF_SMTP_FROM_ADDRESS=${GF_SMTP_FROM_ADDRESS:-yosisolomon@gmail.com}
       - GF_SMTP_FROM_NAME=${GF_SMTP_FROM_NAME:-blacky Grafana}
       - GF_SMTP_STARTTLS_POLICY=MandatoryStartTLS
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     depends_on:
       - prometheus
 

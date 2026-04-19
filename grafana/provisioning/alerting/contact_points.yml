@@ -1,8 +1,6 @@
 apiVersion: 1
 
 # Contact points for Grafana alerting.
-# SMTP is configured via environment variables in docker-compose.yml (sourced from .env).
-# To enable email: add GF_SMTP_* vars to your .env file (see docker-compose.yml comments).
 # After any change here: docker compose restart grafana
 
 contactPoints:
@@ -10,51 +8,24 @@ contactPoints:
     name: blacky-notify
     receivers:
 
-      # ── Email (Gmail) ─────────────────────────────────────────────────────────
-      # Prereqs (one-time setup):
-      #   1. Enable 2FA on your Google account (required for App Passwords)
-      #   2. Generate an App Password: myaccount.google.com/apppasswords
-      #      App: "Mail", Device: "Other (blacky)" → copy the 16-char password
-      #   3. Add to ~/homeassistant/.env:
-      #        GF_SMTP_ENABLED=true
-      #        GF_SMTP_PASSWORD=<your-16-char-app-password>
-      #   4. docker compose restart grafana
-      - uid: email_yossi
-        type: email
+      # ── Telegram ─────────────────────────────────────────────────────────────
+      - uid: telegram
+        type: telegram
         settings:
-          addresses: "yosisolomon@gmail.com"
-          singleEmail: false
+          bottoken: "${TELEGRAM_BOT_TOKEN}"
+          chatid: "${TELEGRAM_CHAT_ID}"
+          message: |
+            {{ range .Alerts }}
+            🚨 {{ .Labels.severity | toUpper }}: {{ .Annotations.summary }}
+            {{ end }}
 
       # ── Home Assistant webhook ────────────────────────────────────────────────
-      # Prereqs:
-      #   1. In HA: Settings → Automations → New → Trigger: Webhook
-      #      Copy the webhook ID (e.g. "grafana_alert_abc123")
-      #   2. HA automation action: send mobile notification (requires companion app)
-      #   3. Uncomment and fill in <WEBHOOK_ID> below
-      #
+      # Uncomment when HA webhook automation is configured:
       # - uid: ha_webhook
       #   type: webhook
       #   settings:
       #     url: http://host.docker.internal:8123/api/webhook/<WEBHOOK_ID>
       #     httpMethod: POST
-
-      # ── Telegram ─────────────────────────────────────────────────────────────
-      # Prereqs:
-      #   1. Create a bot via @BotFather → get the bot token
-      #   2. Get your chat ID: message the bot, then:
-      #      curl https://api.telegram.org/bot<TOKEN>/getUpdates
-      #   3. Add to .env:  TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=...
-      #   4. Uncomment below
-      #
-      # - uid: telegram
-      #   type: telegram
-      #   settings:
-      #     bottoken: "${TELEGRAM_BOT_TOKEN}"
-      #     chatid: "${TELEGRAM_CHAT_ID}"
-      #     message: |
-      #       {{ range .Alerts }}
-      #       🚨 {{ .Labels.severity | toUpper }}: {{ .Annotations.summary }}
-      #       {{ end }}
 
 policies:
   - orgId: 1
