@@ -17,8 +17,15 @@ services:
     restart: unless-stopped
     privileged: true
     network_mode: host
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8123/api/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     depends_on:
-      - mosquitto
+      mosquitto:
+        condition: service_healthy
 
   # ─── Mosquitto MQTT Broker ───────────────────────────────────────────────────
   mosquitto:
@@ -32,6 +39,12 @@ services:
       - "1883:1883"   # MQTT
       - "9001:9001"   # MQTT over WebSockets
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -t '$$SYS/broker/uptime' -C 1 -W 2 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ─── Node-RED ─────────────────────────────────────────────────────────────────
   nodered:
@@ -44,6 +57,12 @@ services:
     restart: unless-stopped
     environment:
       - TZ=America/New_York  # Change to your timezone
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:1880/ 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ─── ESPHome ──────────────────────────────────────────────────────────────────
   # Uses host networking so it can discover ESP devices via mDNS.
@@ -60,6 +79,12 @@ services:
     restart: unless-stopped
     privileged: true
     network_mode: host
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6052/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ─── Portainer (Docker Management UI) ────────────────────────────────────────
   portainer:
@@ -72,6 +97,12 @@ services:
       - "9000:9000"
       - "9443:9443"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # Monitoring Stack — Prometheus + Grafana + Exporters
@@ -91,9 +122,17 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=30d"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     depends_on:
-      - node-exporter
-      - cadvisor
+      node-exporter:
+        condition: service_healthy
+      cadvisor:
+        condition: service_healthy
 
   # ─── Grafana ─────────────────────────────────────────────────────────────────
   grafana:
@@ -115,8 +154,15 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_PATHS_PROVISIONING=/tmp/grafana-provisioning
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
 
   # ─── Node Exporter (host metrics) ───────────────────────────────────────────
   # Exposes CPU, memory, disk, and network metrics from the Docker host.
@@ -139,6 +185,12 @@ services:
       - "--path.rootfs=/rootfs"
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
       - "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9100/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ─── cAdvisor (Docker container metrics) ────────────────────────────────────
   # Exposes per-container CPU, memory, network, and I/O metrics.
@@ -157,3 +209,9 @@ services:
     privileged: true
     devices:
       - /dev/kmsg
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
