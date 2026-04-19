@@ -13,7 +13,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /run/dbus:/run/dbus:ro
       - /sys/class/power_supply:/sys/class/power_supply:ro
-      - /mnt/nas/ha:/backup
+      - /mnt/nas/ha:/config/backups
     restart: unless-stopped
     privileged: true
     network_mode: host
