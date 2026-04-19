@@ -27,6 +27,36 @@ services:
       mosquitto:
         condition: service_healthy
 
+  # ─── Zigbee2MQTT ─────────────────────────────────────────────────────────────
+  # Inactive until dongle arrives. Start with:
+  #   docker compose --profile zigbee up -d
+  # After first start, back up zigbee2mqtt/data/ — it contains the network key.
+  # When the dongle is plugged in, confirm the serial path with:
+  #   ls /dev/serial/by-id/
+  # then remove `profiles` so it starts automatically on boot.
+  zigbee2mqtt:
+    container_name: zigbee2mqtt
+    image: koenkk/zigbee2mqtt:latest
+    profiles: [zigbee]
+    volumes:
+      - ./zigbee2mqtt/data:/app/data
+      - ./zigbee2mqtt/config/configuration.yaml:/app/data/configuration.yaml:ro
+      - /run/udev:/run/udev:ro
+    devices:
+      - /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0:/dev/ttyUSB0
+    ports:
+      - "8099:8099"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8099/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
   # ─── Mosquitto MQTT Broker ───────────────────────────────────────────────────
   mosquitto:
     container_name: mosquitto

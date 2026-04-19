@@ -1,0 +1,25 @@
+homeassistant:
+  enabled: true        # auto-discovers devices in HA via MQTT discovery
+
+permit_join: false     # set to true temporarily when pairing new devices
+
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://mosquitto:1883
+
+serial:
+  # After plugging in the dongle, confirm the path with:
+  #   ls /dev/serial/by-id/
+  # CH340C (this dongle) typically appears as:
+  #   usb-1a86_USB_Serial-if00-port0
+  port: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+  adapter: zstack      # CC2652P with Z-Stack 3.x firmware
+
+frontend:
+  enabled: true
+  port: 8099
+
+advanced:
+  log_level: info
+  # network_key is generated on first run and saved to data/ — back up
+  # zigbee2mqtt/data/ after first start so you can restore your network.
