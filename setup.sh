@@ -234,7 +234,7 @@ if [[ -n "$CAPACITY" ]]; then
         echo "# HELP thinkpad_battery_charging ThinkPad T400 battery charging state (1=charging)"
         echo "# TYPE thinkpad_battery_charging gauge"
         echo "thinkpad_battery_charging ${CHARGING}"
-        if [[ -n "$MINUTES_REMAINING" && "$MINUTES_REMAINING" != "-1" ]]; then
+        if [[ "$MINUTES_REMAINING" =~ ^[0-9]+$ ]]; then
             echo "# HELP thinkpad_battery_runtime_minutes Estimated runtime remaining (minutes)"
             echo "# TYPE thinkpad_battery_runtime_minutes gauge"
             echo "thinkpad_battery_runtime_minutes ${MINUTES_REMAINING}"
