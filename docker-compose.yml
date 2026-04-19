@@ -96,34 +96,25 @@ services:
       - cadvisor
 
   # ─── Grafana ─────────────────────────────────────────────────────────────────
-  # SMTP (email alerts): add these to ~/homeassistant/.env to enable:
-  #   GF_SMTP_ENABLED=true
-  #   GF_SMTP_PASSWORD=<gmail-app-password>   # myaccount.google.com/apppasswords
   grafana:
     container_name: grafana
     image: grafana/grafana-oss:11.6.0
+    entrypoint: ["/bin/sh", "/grafana-entrypoint.sh"]
     volumes:
       - ./grafana/data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./grafana/grafana-entrypoint.sh:/grafana-entrypoint.sh:ro
     ports:
       - "3000:3000"
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"   # allows reaching HA webhook at host:8123
+    env_file: .env
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      # SMTP — defaults are pre-filled for Gmail; only password is required in .env
-      - GF_SMTP_ENABLED=${GF_SMTP_ENABLED:-false}
-      - GF_SMTP_HOST=${GF_SMTP_HOST:-smtp.gmail.com:587}
-      - GF_SMTP_USER=${GF_SMTP_USER:-yosisolomon@gmail.com}
-      - GF_SMTP_PASSWORD=${GF_SMTP_PASSWORD:-}
-      - GF_SMTP_FROM_ADDRESS=${GF_SMTP_FROM_ADDRESS:-yosisolomon@gmail.com}
-      - GF_SMTP_FROM_NAME=${GF_SMTP_FROM_NAME:-blacky Grafana}
-      - GF_SMTP_STARTTLS_POLICY=MandatoryStartTLS
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_PATHS_PROVISIONING=/tmp/grafana-provisioning
     depends_on:
       - prometheus
 
