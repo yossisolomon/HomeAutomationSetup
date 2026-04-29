@@ -76,6 +76,26 @@ services:
       retries: 3
       start_period: 10s
 
+  # ─── MQTT Explorer ────────────────────────────────────────────────────────────
+  # Web UI for inspecting MQTT topics. Auth disabled — LAN only.
+  mqtt-explorer:
+    container_name: mqtt-explorer
+    image: ghcr.io/thomasnordquist/mqtt-explorer:latest
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - MQTT_EXPLORER_SKIP_AUTH=true
+    volumes:
+      - ./mqtt-explorer/data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:4000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
   # ─── Node-RED ─────────────────────────────────────────────────────────────────
   nodered:
     container_name: nodered
