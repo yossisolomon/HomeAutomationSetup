@@ -37,10 +37,9 @@ services:
   zigbee2mqtt:
     container_name: zigbee2mqtt
     image: koenkk/zigbee2mqtt:latest
-    profiles: [zigbee]
     volumes:
       - ./zigbee2mqtt/data:/app/data
-      - ./zigbee2mqtt/config/configuration.yaml:/app/data/configuration.yaml:ro
+      - ./zigbee2mqtt/config/configuration.yaml:/app/data/configuration.yaml
       - /run/udev:/run/udev:ro
     devices:
       - /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0:/dev/ttyUSB0
