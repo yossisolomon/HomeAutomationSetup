@@ -25,3 +25,6 @@ command_line:
       unique_id: thinkpad_battery_status
       command: "cat /sys/class/power_supply/BAT0/status"
       scan_interval: 60
+
+# RF fan + light template entities (Broadlink 433MHz)
+template: !include_dir_merge_list template/

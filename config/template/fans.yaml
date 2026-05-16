@@ -1,0 +1,278 @@
+# ════════════════════════════════════════════════════════════════════════════
+# TYPE A — indoor ceiling fan
+# Single toggle button for fan on/off. Single toggle button for light on/off.
+# Fan remembers speed internally — speed buttons also serve as "turn on at speed N".
+# Jinja: speed_{{ preset_mode }} → speed_1 … speed_6, speed_turbo
+# Commands to learn: fan_toggle, speed_1–6, speed_turbo, direction, light_toggle
+# ════════════════════════════════════════════════════════════════════════════
+
+- fan:
+  - name: "Dana's Office Fan"
+    unique_id: fan_danas_office
+    preset_modes: &type_a_presets
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "6"
+      - turbo
+    turn_on:
+      - action: remote.send_command
+        target: &rm4
+          entity_id: remote.broadlink_main_ac_and_fans
+        data: {device: fan_danas_office, command: fan_toggle}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_danas_office, command: fan_toggle}
+    set_preset_mode:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_danas_office, command: "speed_{{ preset_mode }}"}
+    set_direction:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_danas_office, command: direction}
+
+  - name: "Yossi's Office Fan"
+    unique_id: fan_yossis_office
+    preset_modes: *type_a_presets
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_yossis_office, command: fan_toggle}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_yossis_office, command: fan_toggle}
+    set_preset_mode:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_yossis_office, command: "speed_{{ preset_mode }}"}
+    set_direction:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_yossis_office, command: direction}
+
+  - name: "Master Bedroom Fan"
+    unique_id: fan_master_bedroom
+    preset_modes: *type_a_presets
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_master_bedroom, command: fan_toggle}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_master_bedroom, command: fan_toggle}
+    set_preset_mode:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_master_bedroom, command: "speed_{{ preset_mode }}"}
+    set_direction:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_master_bedroom, command: direction}
+
+  - name: "Mamad Fan"
+    unique_id: fan_mamad
+    preset_modes: *type_a_presets
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_mamad, command: fan_toggle}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_mamad, command: fan_toggle}
+    set_preset_mode:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_mamad, command: "speed_{{ preset_mode }}"}
+    set_direction:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_mamad, command: direction}
+
+# ─── Type A lights (single toggle button) ───────────────────────────────────
+- light:
+  - name: "Dana's Office Fan Light"
+    unique_id: light_fan_danas_office
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_danas_office, command: light_toggle}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_danas_office, command: light_toggle}
+
+  - name: "Yossi's Office Fan Light"
+    unique_id: light_fan_yossis_office
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_yossis_office, command: light_toggle}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_yossis_office, command: light_toggle}
+
+  - name: "Master Bedroom Fan Light"
+    unique_id: light_fan_master_bedroom
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_master_bedroom, command: light_toggle}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_master_bedroom, command: light_toggle}
+
+  - name: "Mamad Fan Light"
+    unique_id: light_fan_mamad
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_mamad, command: light_toggle}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_mamad, command: light_toggle}
+
+# ════════════════════════════════════════════════════════════════════════════
+# TYPE B — balcony fan
+# No separate on button — speed_1 = turn_on. No light on button — color = turn_on.
+# Jinja: speed_{{ preset_mode }} same trick
+# Light: color_temp slider → set_temperature → warm/natural/cool
+# Brightness: set_level → compares to optimistic brightness → brighter or dimmer RF command
+# Commands to learn: speed_1–5, speed_turbo, fan_off, direction,
+#                    light_warm, light_cool, light_natural, light_off,
+#                    light_brighter, light_dimmer
+# ════════════════════════════════════════════════════════════════════════════
+
+- fan:
+  - name: "Balcony Left Fan"
+    unique_id: fan_balcony_left
+    preset_modes: &type_b_presets
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - turbo
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_left, command: speed_1}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_left, command: fan_off}
+    set_preset_mode:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_left, command: "speed_{{ preset_mode }}"}
+    set_direction:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_left, command: direction}
+
+  - name: "Balcony Right Fan"
+    unique_id: fan_balcony_right
+    preset_modes: *type_b_presets
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_right, command: speed_1}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_right, command: fan_off}
+    set_preset_mode:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_right, command: "speed_{{ preset_mode }}"}
+    set_direction:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_right, command: direction}
+
+# ─── Type B lights (color_temp slider → warm/natural/cool, brightness slider → brighter/dimmer) ──
+- light:
+  - name: "Balcony Left Fan Light"
+    unique_id: light_fan_balcony_left
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_left, command: light_warm}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_left, command: light_off}
+    set_temperature:
+      - choose:
+          - conditions: "{{ color_temp_kelvin > 5000 }}"
+            sequence:
+              - action: remote.send_command
+                target: *rm4
+                data: {device: fan_balcony_left, command: light_cool}
+          - conditions: "{{ color_temp_kelvin < 3500 }}"
+            sequence:
+              - action: remote.send_command
+                target: *rm4
+                data: {device: fan_balcony_left, command: light_warm}
+        default:
+          - action: remote.send_command
+            target: *rm4
+            data: {device: fan_balcony_left, command: light_natural}
+    set_level:
+      - choose:
+          - conditions: "{{ brightness > state_attr(this.entity_id, 'brightness') | int(128) }}"
+            sequence:
+              - action: remote.send_command
+                target: *rm4
+                data: {device: fan_balcony_left, command: light_brighter}
+        default:
+          - action: remote.send_command
+            target: *rm4
+            data: {device: fan_balcony_left, command: light_dimmer}
+
+  - name: "Balcony Right Fan Light"
+    unique_id: light_fan_balcony_right
+    turn_on:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_right, command: light_warm}
+    turn_off:
+      - action: remote.send_command
+        target: *rm4
+        data: {device: fan_balcony_right, command: light_off}
+    set_temperature:
+      - choose:
+          - conditions: "{{ color_temp_kelvin > 5000 }}"
+            sequence:
+              - action: remote.send_command
+                target: *rm4
+                data: {device: fan_balcony_right, command: light_cool}
+          - conditions: "{{ color_temp_kelvin < 3500 }}"
+            sequence:
+              - action: remote.send_command
+                target: *rm4
+                data: {device: fan_balcony_right, command: light_warm}
+        default:
+          - action: remote.send_command
+            target: *rm4
+            data: {device: fan_balcony_right, command: light_natural}
+    set_level:
+      - choose:
+          - conditions: "{{ brightness > state_attr(this.entity_id, 'brightness') | int(128) }}"
+            sequence:
+              - action: remote.send_command
+                target: *rm4
+                data: {device: fan_balcony_right, command: light_brighter}
+        default:
+          - action: remote.send_command
+            target: *rm4
+            data: {device: fan_balcony_right, command: light_dimmer}
