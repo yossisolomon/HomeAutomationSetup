@@ -9,24 +9,15 @@ Named commands (no b64) = not yet learned — HA will warn but not crash.
 Run ON blacky (writes fans.yaml in place).
 
 Usage:
-  python3 scripts/sync_rf_codes.py               # fetch from broadlinkmanager + write
-  python3 scripts/sync_rf_codes.py --cache-only  # regenerate from cache, no fetch
-  python3 scripts/sync_rf_codes.py --dry-run     # print fans.yaml, don't write
-  python3 scripts/sync_rf_codes.py --restart     # restart HA after writing
-
-Requires: pip install requests
+  python3 scripts/sync_rf_codes.py            # regenerate fans.yaml from cache
+  python3 scripts/sync_rf_codes.py --dry-run  # print fans.yaml, don't write
+  python3 scripts/sync_rf_codes.py --restart  # write + restart HA
 """
 import argparse
-import base64
 import json
 import subprocess
 import pathlib
 import sys
-
-try:
-    import requests
-except ImportError:
-    sys.exit("pip install requests")
 
 REPO_ROOT  = pathlib.Path(__file__).parent.parent
 CACHE_FILE = REPO_ROOT / "scripts" / "rf_codes_cache.json"
@@ -149,32 +140,13 @@ def generate(codes: dict) -> str:
 
 
 def main():
-    p = argparse.ArgumentParser(description="Sync RF codes from broadlinkmanager to fans.yaml")
-    p.add_argument("--host",       default="localhost",  help="broadlinkmanager host (default: localhost)")
-    p.add_argument("--cache-only", action="store_true", help="Skip fetch, regenerate from cache")
-    p.add_argument("--dry-run",    action="store_true", help="Print fans.yaml, don't write")
-    p.add_argument("--restart",    action="store_true", help="Restart HA after writing fans.yaml")
+    p = argparse.ArgumentParser(description="Regenerate fans.yaml from rf_codes_cache.json")
+    p.add_argument("--dry-run", action="store_true", help="Print fans.yaml, don't write")
+    p.add_argument("--restart", action="store_true", help="Restart HA after writing fans.yaml")
     args = p.parse_args()
 
     codes = json.loads(CACHE_FILE.read_text()) if CACHE_FILE.exists() else {}
     print(f"Cache: {len(codes)} codes")
-
-    if not args.cache_only:
-        print(f"Fetching http://{args.host}:7020/api/codes ...")
-        r = requests.get(f"http://{args.host}:7020/api/codes", timeout=5)
-        r.raise_for_status()
-        raw = r.json()
-        if not isinstance(raw, list):
-            sys.exit(f"Unexpected API response (expected list): {raw}")
-        new = {
-            c["CodeName"]: base64.b64encode(bytes.fromhex(c["Code"])).decode()
-            for c in raw
-            if "/" in c.get("CodeName", "")
-        }
-        print(f"  +{len(new)} codes from broadlinkmanager")
-        codes.update(new)
-        CACHE_FILE.write_text(json.dumps(codes, indent=2, sort_keys=True))
-        print(f"Cache saved: {len(codes)} total")
 
     yaml_out = generate(codes)
 
