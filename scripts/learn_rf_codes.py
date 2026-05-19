@@ -10,6 +10,7 @@ Usage (run ON blacky):
   python3 scripts/learn_rf_codes.py              # learn all missing codes
   python3 scripts/learn_rf_codes.py --relearn    # re-learn all codes (overwrite)
   python3 scripts/learn_rf_codes.py --fan NAME   # only codes for one fan
+  python3 scripts/learn_rf_codes.py --cmd CMD    # only one command (implies --relearn)
   python3 scripts/learn_rf_codes.py --freq 315   # use 315MHz instead of 433.92
 
 After learning, run:
@@ -63,6 +64,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--relearn", action="store_true", help="Re-learn all codes (overwrite existing)")
     p.add_argument("--fan",     default=None,        help="Only learn codes for this fan id (e.g. fan_yossis_office)")
+    p.add_argument("--cmd",     default=None,        help="Only learn this one command (implies --relearn for that key)")
     p.add_argument("--freq",    type=float, default=DEFAULT_FREQ, help=f"RF frequency in MHz (default: {DEFAULT_FREQ})")
     args = p.parse_args()
 
@@ -90,8 +92,10 @@ def main():
         print(f"FAN: {fan['name']} ({dev_id})")
         print(f"{'='*50}")
         for cmd in cmds:
+            if args.cmd and cmd != args.cmd:
+                continue
             key = f"{dev_id}/{cmd}"
-            if key in codes and not args.relearn:
+            if key in codes and not args.relearn and not args.cmd:
                 print(f"  [{cmd}] already learned — skipping")
                 skipped += 1
                 continue
