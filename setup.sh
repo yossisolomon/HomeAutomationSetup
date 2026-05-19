@@ -486,6 +486,18 @@ ufw allow 6052/tcp comment "ESPHome (host network)"
 ufw --force enable
 info "UFW active. HA (8123) and ESPHome (6052) explicitly allowed; bridge container ports open via Docker."
 
+# ── 6a. Docker/UFW iptables conflict fix ─────────────────────────────────────
+# Docker flushes and rebuilds iptables on every start/restart, wiping UFW's
+# rules and leaving INPUT policy=DROP with no ALLOW rules (breaks SSH etc.).
+# Fix: reload UFW after Docker starts via a systemd drop-in.
+info "Installing Docker/UFW iptables conflict fix..."
+mkdir -p /etc/systemd/system/docker.service.d
+cat > /etc/systemd/system/docker.service.d/ufw-reload.conf <<'DROPINEOF'
+[Service]
+ExecStartPost=/usr/sbin/ufw reload
+DROPINEOF
+systemctl daemon-reload
+
 # ── 6b. Wake-on-LAN persistence ──────────────────────────────────────────────
 # NIC resets WoL register on reboot; re-apply via oneshot systemd service.
 # To activate: set "Wake on LAN: AC and Battery" in BIOS (Config → Network).
