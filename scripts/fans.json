@@ -1,0 +1,26 @@
+{
+  "fans": [
+    {"name": "Yossi's Office Fan",  "id": "fan_yossis_office",  "type": "A"},
+    {"name": "Dana's Office Fan",   "id": "fan_danas_office",   "type": "A"},
+    {"name": "Master Bedroom Fan",  "id": "fan_master_bedroom", "type": "A"},
+    {"name": "Mamad Fan",           "id": "fan_mamad",          "type": "A"},
+    {"name": "Balcony Left Fan",    "id": "fan_balcony_left",   "type": "B"},
+    {"name": "Balcony Right Fan",   "id": "fan_balcony_right",  "type": "B"}
+  ],
+  "types": {
+    "A": {
+      "speeds":   ["1","2","3","4","5","6","natural_wind"],
+      "commands": ["fan_toggle","speed_1","speed_2","speed_3","speed_4","speed_5","speed_6","speed_natural_wind","direction","light_toggle"],
+      "turn_on":  "fan_toggle",
+      "turn_off": "fan_toggle",
+      "light":    "toggle"
+    },
+    "B": {
+      "speeds":   ["1","2","3","4","5","natural_wind"],
+      "commands": ["speed_1","speed_2","speed_3","speed_4","speed_5","speed_natural_wind","fan_off","direction","light_warm","light_cool","light_natural","light_off","light_brighter","light_dimmer"],
+      "turn_on":  "speed_1",
+      "turn_off": "fan_off",
+      "light":    "full"
+    }
+  }
+}
