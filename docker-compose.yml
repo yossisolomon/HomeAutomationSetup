@@ -241,6 +241,19 @@ services:
       retries: 3
       start_period: 10s
 
+  # ─── Broadlink Manager (RF/IR code learning UI) ─────────────────────────────
+  # Start when learning new RF codes: docker compose --profile learning up broadlinkmanager -d
+  # Access at http://blacky.local:7020 — network_mode: host required for UDP device discovery.
+  # Stop when done: docker compose --profile learning stop broadlinkmanager
+  broadlinkmanager:
+    container_name: broadlinkmanager
+    image: techblog/broadlinkmanager:latest
+    network_mode: host
+    volumes:
+      - ./broadlinkmanager/data:/broadlinkmanager/data
+    restart: unless-stopped
+    profiles: [learning]
+
   # ─── cAdvisor (Docker container metrics) ────────────────────────────────────
   # Exposes per-container CPU, memory, network, and I/O metrics.
   cadvisor:
