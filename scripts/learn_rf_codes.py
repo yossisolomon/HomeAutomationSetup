@@ -51,6 +51,9 @@ def learn_one(dev, key, frequency):
         time.sleep(0.5)
         try:
             data = dev.check_data()
+            if len(data) != 250:
+                print(f"  BAD ({len(data)} bytes — expected 250) retrying...")
+                return None
             b64 = base64.b64encode(data).decode()
             print(f"  OK ({len(data)} bytes)        ")
             return b64
@@ -106,7 +109,10 @@ def main():
                 CACHE_FILE.write_text(json.dumps(codes, indent=2, sort_keys=True))
                 learned += 1
             else:
-                retry = input("  Retry? [y/N]: ").strip().lower()
+                try:
+                    retry = input("  Retry? [y/N]: ").strip().lower()
+                except EOFError:
+                    retry = "n"
                 if retry == "y":
                     result = learn_one(dev, key, args.freq)
                     if result:
