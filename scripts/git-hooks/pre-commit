@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Versioned pre-commit hook. Enable once with:
+#   git config core.hooksPath scripts/git-hooks
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# 1. Lint HA YAML (pyenv auto-activates via .python-version).
+yaml_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^config/.*\.ya?ml$' || true)
+if [ -n "$yaml_files" ]; then
+  echo "[pre-commit] yamllint…"
+  python -m yamllint $yaml_files
+fi
+
+# 2. Normalize any staged Node-RED flow files in place, then re-stage.
+flow_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^nodered/data/flows/.*\.json$' || true)
+if [ -n "$flow_files" ]; then
+  echo "[pre-commit] normalizing Node-RED flows…"
+  for f in $flow_files; do
+    tmp="$(mktemp)"
+    bash scripts/normalize_nodered.sh "$f" > "$tmp"
+    mv "$tmp" "$f"
+    git add "$f"
+  done
+fi
+
+# 3. Validate meta annotations + unique names.
+echo "[pre-commit] validating automation meta + names…"
+python scripts/gen_automations_toc.py --check
+
+# 4. Regenerate the ToC and stage it.
+echo "[pre-commit] regenerating docs/automations.md…"
+python scripts/gen_automations_toc.py
+git add docs/automations.md
+
+echo "[pre-commit] OK"
