@@ -129,6 +129,23 @@ Rough priority order; each item becomes its own spec doc when actioned.
 7. **Plant-care soil-moisture reminders** — 8 sensors ordered, 2 paired; complete pairing + build watering-reminder automations.
 8. **Finish blacky Wake-on-LAN setup** — incomplete.
 9. **Complete router MAC reservations** — also feeds Wi-Fi presence detection.
+10. **blacky config ownership + privilege hardening** *(infra spec)* — `config/` is
+    `root:root` because the official HA image runs as root (can't cleanly run non-root),
+    which blocks the Mac→blacky `git pull` for tracked config files. Fix:
+    `sudo chown -R yossi:yossi config` — HA-as-root still writes fine, and the files HA
+    creates as root (`.storage/`, `*.db`, `*.log`, `secrets.yaml`) are gitignored so their
+    ownership is moot; automations are git-authored (not via the HA UI) so HA only reads
+    them. **This chown must be added to the OS setup script (`setup.sh`)** so it is applied
+    on every rebuild. Also **drop `privileged: true`** from the `homeassistant` compose
+    service — HA uses no USB/BT/`devices` (the Zigbee dongle belongs to the `zigbee2mqtt`
+    container; host networking doesn't need privileged); recreating the container is a brief
+    HA restart.
+11. **Reconcile blacky git drift** *(part of #10)* — live config on blacky is not fully in
+    git: `zigbee2mqtt/config/configuration.yaml` is tracked but has uncommitted local edits;
+    `config/custom_components/ar_smart_ir/` and `config/custom_components/qingping_cgs1/` are
+    **untracked** (HACS-installed post-init, not backed up — `ar_smart_ir` likely feeds the
+    IR-finder task). Commit the z2m edit and decide track-vs-gitignore for the HACS
+    components so git is the real source of truth.
 
 ---
 
