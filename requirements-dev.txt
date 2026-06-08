@@ -1,0 +1,6 @@
+# Dev tooling for the automation workflow — installed into the pyenv `homeautomation` venv.
+# After first install, lock exact versions with:
+#   pip freeze | grep -iE 'pyyaml|pytest|yamllint'
+PyYAML~=6.0
+pytest~=8.3
+yamllint~=1.35

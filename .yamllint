@@ -1,0 +1,14 @@
+# Relaxed ruleset — HA YAML has long lines and many truthy values.
+extends: relaxed
+rules:
+  line-length: disable
+  comments:
+    min-spaces-from-content: 1   # allow "# meta:" style
+  truthy:
+    allowed-values: ["true", "false", "on", "off"]
+  document-start: disable
+  new-line-at-end-of-file: disable  # config/automations.yaml is HA-generated without trailing newline
+ignore: |
+  config/custom_components/
+  config/blueprints/automation/homeassistant/
+  config/.storage/
