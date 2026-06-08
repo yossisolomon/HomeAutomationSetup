@@ -54,3 +54,11 @@ zigbee2mqtt/data/
 config/template/fans.yaml
 # rf_codes_cache.json: learned RF codes — replay risk if leaked; backed up to HDD via cron
 scripts/rf_codes_cache.json
+
+# Node-RED — track flows + settings + lib, ignore runtime/credential files
+nodered/data/flows_cred.json
+nodered/data/.config.*.json
+nodered/data/.sessions.json
+nodered/data/node_modules/
+nodered/data/lib/node_modules/
+nodered/data/.npm/
