@@ -1,0 +1,87 @@
+blueprint:
+  name: Telegram Confirmable Notification
+  description: >-
+    Send a Telegram message with inline Confirm/Dismiss buttons and run an action
+    based on which the user taps. The "unsure -> ask" call-to-action primitive.
+  domain: script
+  input:
+    target_chat:
+      name: Target chat id
+      description: Telegram chat id to send to (e.g. !secret telegram_chat_id).
+      selector:
+        text:
+    message:
+      name: Message
+      selector:
+        text:
+    confirm_text:
+      name: Confirm button text
+      default: "Confirm"
+      selector:
+        text:
+    dismiss_text:
+      name: Dismiss button text
+      default: "Dismiss"
+      selector:
+        text:
+    confirm_action:
+      name: Confirm action
+      default: []
+      selector:
+        action:
+    dismiss_action:
+      name: Dismiss action
+      default: []
+      selector:
+        action:
+    timeout_hours:
+      name: Timeout (hours)
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 24
+          mode: box
+
+mode: restart
+
+sequence:
+  - alias: "Set up callback tokens"
+    variables:
+      token_confirm: "CONFIRM_{{ context.id }}"
+      token_dismiss: "DISMISS_{{ context.id }}"
+      confirm_label: !input confirm_text
+      dismiss_label: !input dismiss_text
+  - alias: "Send Telegram message with inline buttons"
+    service: telegram_bot.send_message
+    data:
+      target: !input target_chat
+      message: !input message
+      inline_keyboard:
+        - "{{ confirm_label }}:/{{ token_confirm }}, {{ dismiss_label }}:/{{ token_dismiss }}"
+  - alias: "Await the button press"
+    wait_for_trigger:
+      - trigger: event
+        event_type: telegram_callback
+        event_data:
+          data: "{{ token_confirm }}"
+      - trigger: event
+        event_type: telegram_callback
+        event_data:
+          data: "{{ token_dismiss }}"
+    timeout:
+      hours: !input timeout_hours
+  - alias: "Acknowledge the callback + run the chosen action"
+    if:
+      - condition: template
+        value_template: "{{ wait.trigger is not none }}"
+    then:
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ wait.trigger.event.data.id }}"
+          message: "Got it"
+      - choose:
+          - conditions: "{{ wait.trigger.event.data.data == token_confirm }}"
+            sequence: !input confirm_action
+          - conditions: "{{ wait.trigger.event.data.data == token_dismiss }}"
+            sequence: !input dismiss_action
