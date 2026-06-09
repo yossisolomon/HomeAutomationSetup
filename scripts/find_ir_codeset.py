@@ -113,18 +113,52 @@ def build_mini_db(db_dir: str, force: bool = False) -> str:
 
 
 LEARN_POLL_TIMEOUT = 30
+# Per-attempt discovery timeout. Kept short on purpose: broadlink reuses one
+# socket across its internal retry loop, so a long timeout means many sends on a
+# stale-routed socket. Each of OUR retries makes a fresh socket (fresh route
+# lookup), so short timeout + more retries is more robust on a flaky LAN.
+CONNECT_TIMEOUT = 4
 
 
-def connect_device(ip: str | None, discover: bool, timeout: int):
+def connect_device(ip: str | None, discover: bool, timeout: int,
+                   local_ip: str | None = None, retries: int = 5):
     import broadlink
     if discover and not ip:
-        devices = broadlink.discover(timeout=timeout)
+        devices = []
+        for attempt in range(1, retries + 1):
+            try:
+                devices = broadlink.discover(timeout=CONNECT_TIMEOUT, local_ip_address=local_ip)
+                if devices:
+                    break
+                print(f"  no device yet — retry {attempt}/{retries}")
+            except OSError as err:
+                print(f"  discover error: {err} — retry {attempt}/{retries}")
+            time.sleep(1)
         if not devices:
             raise SystemExit("no broadlink devices found on the LAN")
         dev = devices[0]
         print(f"Discovered {dev.type} at {dev.host[0]}")
     elif ip:
-        dev = broadlink.hello(ip)
+        bind = f" via {local_ip}" if local_ip else ""
+        last = None
+        dev = None
+        for attempt in range(1, retries + 1):
+            try:
+                print(f"Connecting to {ip}:80{bind} (attempt {attempt}/{retries})…")
+                dev = next(broadlink.xdiscover(
+                    timeout=CONNECT_TIMEOUT, local_ip_address=local_ip, discover_ip_address=ip))
+                break
+            except (OSError, StopIteration) as err:
+                last = err
+                print(f"  {type(err).__name__}: {err}")
+                time.sleep(1)
+        if dev is None:
+            raise SystemExit(
+                f"could not reach broadlink at {ip} after {retries} attempts "
+                f"(last: {last!r}). The link may be flapping (weak Wi-Fi) or a VPN "
+                f"is capturing the route — move closer to the AP, disconnect the "
+                f"VPN, or pass --local-ip <your-LAN-ip>."
+            )
     else:
         raise SystemExit("provide --device-ip <ip> or --discover")
     dev.auth()
@@ -186,6 +220,8 @@ def main(argv=None) -> int:
     p.add_argument("--timeout", type=int, default=LEARN_POLL_TIMEOUT, help="per-capture timeout seconds (also used as the --discover scan duration)")
     p.add_argument("--top", type=int, default=5, help="shortlist size to show/confirm")
     p.add_argument("--controller", default="remote.<your_broadlink_entity>", help="HA remote entity for the report")
+    p.add_argument("--local-ip", default=None, help="bind discovery to this local IP (dodges VPN tunnels; auto-detected if omitted)")
+    p.add_argument("--connect-retries", type=int, default=8, help="connection attempts on a flaky link (default 8)")
     args = p.parse_args(argv)
 
     db = ensure_db(args.db_dir, args.refresh_db)
@@ -193,7 +229,8 @@ def main(argv=None) -> int:
     entries = ir_match.load_mini_db(mini)
     print(f"Loaded {len(entries)} code-sets from {mini}")
 
-    dev = connect_device(args.device_ip, args.discover, args.timeout)
+    dev = connect_device(args.device_ip, args.discover, args.timeout,
+                         local_ip=args.local_ip, retries=args.connect_retries)
     print("Capturing OFF from the real remote:")
     ref = capture(dev, "OFF", args.captures, args.timeout)
 
