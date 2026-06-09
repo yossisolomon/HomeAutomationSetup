@@ -145,6 +145,23 @@ Rough priority order; each item becomes its own spec doc when actioned.
     **untracked** (HACS-installed post-init, not backed up — `ar_smart_ir` likely feeds the
     IR-finder task). Commit the z2m edit and decide track-vs-gitignore for the HACS
     components so git is the real source of truth.
+12. **`scripts/` subject-dir reorg** *(refactor spec)* — `scripts/` has grown into a flat mix
+    (RF learn/sync, ToC generator, NR normalizer, git-hooks, IR finder). Group by subject
+    (`scripts/rf/`, `scripts/ir/`, `scripts/docs/`, keep `scripts/git-hooks/`). Cross-cutting:
+    touches `REPO_ROOT`-relative paths in the RF/IR scripts, `.gitignore`, the `pre-commit`
+    hook (`core.hooksPath`), blacky sync paths, and memory/doc pointers — so it's its own
+    `git mv` + path-fixup commit, not bundled into a feature.
+13. **Fan UI preset-speed desync on turn-on** *(small generator change)* — RF is one-way, so HA
+    keeps an *optimistic* `preset_mode` (the last value set). For type-B/C fans, the **On** button
+    sends the speed-1 RF code but never updates that attribute, so the UI can show e.g. speed 4
+    while the device is actually at 1. Fix in the generator `scripts/sync_rf_codes.py` (not the
+    gitignored generated `config/template/fans.yaml`): for the B/C `turn_on` branch, emit a
+    `fan.set_preset_mode` call on `{{ this.entity_id }}` with `preset_mode: "1"` instead of
+    blasting the raw speed-1 command — that one call both sends the speed-1 code *and* resets the
+    optimistic `preset_mode` to 1, keeping UI and device in sync. (Type A's `turn_on` is a
+    stateless `fan_toggle`, so it has no speed to reset.) Robust alternative if cross-restart /
+    physical-remote reconciliation is ever wanted: back `preset_mode` with an `input_select`
+    helper + `preset_mode_template` that each action writes.
 
 ---
 
