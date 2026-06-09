@@ -254,10 +254,13 @@ def main(argv=None) -> int:
         # shortlist is ever surfaced for confirmation.
         ranked = shortlist + ranked[args.top:]
 
-    print("\nTop candidates:")
+    print("\nTop candidates (ranked by match score):")
     for e in ranked[: args.top]:
-        print(f"  {e['score']:5.1f}%  code {e['device_code']:>5}  "
-              f"{e.get('manufacturer','?')}  {', '.join(e.get('models') or []) or '?'}")
+        s2 = e.get("score2")
+        label = (f"{e['score'] + s2:6.1f}% (off {e['score']:.0f} + cool {s2:.0f})"
+                 if s2 is not None else f"{e['score']:6.1f}%")
+        print(f"  {label}  code {e['device_code']:>5}  "
+              f"{e.get('manufacturer', '?')}  {', '.join(e.get('models') or []) or '?'}")
 
     confirmed = None
     for entry in ranked[: args.top]:
