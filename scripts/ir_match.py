@@ -1,7 +1,10 @@
 """Pure matching: decode DB entries and score them against a reference. No I/O."""
 import json
 
-from scripts import ir_codec
+try:
+    from scripts import ir_codec
+except ImportError:  # run standalone: imported as a sibling module, not scripts.*
+    import ir_codec
 
 
 def score(ref: list[int], cand: list[int], tol: float = 0.15, count_slack: int = 2) -> float:

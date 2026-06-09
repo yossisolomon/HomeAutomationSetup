@@ -17,7 +17,11 @@ import subprocess
 import time
 from collections import Counter
 
-from scripts import ir_codec, ir_match
+try:
+    from scripts import ir_codec, ir_match
+except ImportError:  # run standalone: python scripts/find_ir_codeset.py
+    import ir_codec
+    import ir_match
 
 
 def clean_captures(captures: list[list[int]]) -> list[int]:
