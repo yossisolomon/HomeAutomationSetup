@@ -63,7 +63,7 @@
 | Air quality (master bedroom) | Qingping Air Monitor **Lite** | Wi-Fi/cloud-MQTT |
 | Air purifier | Xiaomi Smart Air Purifier **4 Pro** (living room) | HACS Xiaomi MIoT Auto, local mode |
 | Air purifier | Xiaomi Smart Air Purifier **4 Compact** (master bedroom) | Same integration |
-| Ceiling fans | Broadlink RM4 Pro × 1 → 433 MHz RF, whole-house | 6 fan + 6 light template entities in `config/template/fans.yaml` |
+| Ceiling fans | Broadlink RM4 Pro × 1 → 433 MHz RF, whole-house | 6 fan + 6 light template entities in `config/template/fans.yaml`. Three remote types in `scripts/fans.json`: **A** (toggle on/off, 6 speeds), **B** (balcony — separate off, RGB-ish light), **C** (Mamad — off-button only, any speed powers on) |
 | Boiler | LocalTuya smart switch (Smartr 16A, double-pole) | Done |
 | Messaging | Telegram bot | |
 | Weather | Met.no | |
@@ -81,7 +81,6 @@
 | Broadlink RM4 Pro (2nd unit, Bedroom 4 A/C) | Powered; not yet configured |
 | Main-AC IR codes | Not yet found |
 | **Shelly 2PM Gen4 blinds (Zigbee)** | Arriving Sunday — intended as the **Zigbee backbone**: blinds run the full length of the longest wall, so the Gen4 controllers act as Zigbee repeaters end-to-end |
-| Mamad ceiling fan template | Needs its own fan type in `config/template/fans.yaml` — its remote differs from the other fans and is currently missing |
 | Master-bath Arctic-fan window vent | Needs a Zigbee temp/humidity sensor + USB Zigbee-controlled plug |
 
 ---
