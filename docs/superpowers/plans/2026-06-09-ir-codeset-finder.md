@@ -1,6 +1,6 @@
 # IR Code-Set Finder Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** A standalone CLI that captures an unknown AC's real IR remote, identifies which `ar_smart_ir` climate code-set matches, and reports manufacturer/model/device_code for a one-off manual UI config.
 
@@ -23,7 +23,7 @@
 - Create: `scripts/ir_codec.py`, `scripts/ir_match.py`, `scripts/find_ir_codeset.py` (empty stubs)
 - Create: `tests/test_ir_codec.py`, `tests/test_ir_match.py`, `tests/test_find_ir_codeset.py` (empty)
 
-- [ ] **Step 1: Ensure deps in the venv**
+- [x] **Step 1: Ensure deps in the venv**
 
 Run (one line; pip pointed at public PyPI per Forter default):
 ```bash
@@ -32,7 +32,7 @@ Run (one line; pip pointed at public PyPI per Forter default):
 ```
 Expected: `broadlink`, `pytest`, `PyYAML`, `yamllint` all "already satisfied" or freshly installed.
 
-- [ ] **Step 2: Verify the toolchain**
+- [x] **Step 2: Verify the toolchain**
 
 Run:
 ```bash
@@ -40,7 +40,7 @@ Run:
 ```
 Expected: `ok`
 
-- [ ] **Step 3: Create empty module + test files**
+- [x] **Step 3: Create empty module + test files**
 
 ```bash
 : > scripts/ir_codec.py
@@ -51,7 +51,7 @@ Expected: `ok`
 : > tests/test_find_ir_codeset.py
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/ir_codec.py scripts/ir_match.py scripts/find_ir_codeset.py \
@@ -69,7 +69,7 @@ git commit -m "chore(ir): scaffold IR code-set finder modules + tests"
 
 The real `off` packet from `codes/climate/1000.json` is the fixture. It decodes to **140 pulses** starting `[297, 145, 23, 52, 24, 16, 23, 17, 23, 16, 23, 53]` (9 ms / 4.5 ms NEC leader; 1 tick ≈ 30.52 µs).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_ir_codec.py
@@ -96,12 +96,12 @@ def test_decode_rejects_non_ir_packet():
 
 Note: tests import `from scripts import ir_codec`. Add an empty `scripts/__init__.py` and `tests/__init__.py` if not present, and run pytest from the repo root.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_codec.py -v`
 Expected: FAIL (`module 'ir_codec' has no attribute 'decode_broadlink_b64'`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # scripts/ir_codec.py
@@ -133,12 +133,12 @@ def decode_broadlink_b64(b64: str) -> list[int]:
     return pulses
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_codec.py -v`
 Expected: PASS (2 passed).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/ir_codec.py tests/test_ir_codec.py scripts/__init__.py tests/__init__.py
@@ -155,7 +155,7 @@ git commit -m "feat(ir): decode broadlink Base64 IR packets to pulse ticks"
 
 Encode is needed only to replay Raw-encoded candidates (Base64 candidates replay their stored packet verbatim). Correctness is proven by round-trip: `decode(encode(x)) == x`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # append to tests/test_ir_codec.py
@@ -166,12 +166,12 @@ def test_encode_decode_round_trip():
     assert ir_codec.decode_broadlink_b64(__import__("base64").b64encode(out).decode()) == pulses
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_codec.py::test_encode_decode_round_trip -v`
 Expected: FAIL (`no attribute 'encode_broadlink'`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # append to scripts/ir_codec.py
@@ -186,12 +186,12 @@ def encode_broadlink(ticks: list[int]) -> bytes:
     return bytes(header) + bytes(body) + b"\x00\x0d\x05"
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_codec.py -v`
 Expected: PASS (3 passed).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/ir_codec.py tests/test_ir_codec.py
@@ -208,7 +208,7 @@ git commit -m "feat(ir): encode pulse ticks to broadlink IR bytes (round-trip)"
 
 SmartIR Raw commands are space-separated signed µs strings, e.g. `"9040 -4410 650 -1590 …"` (sign marks mark/space; magnitude is duration). `9040 µs / 30.5176 ≈ 296` ticks — matching the Base64 leader.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # append to tests/test_ir_codec.py
@@ -223,12 +223,12 @@ def test_b64_to_bytes():
     assert ir_codec.b64_to_bytes("JgA=") == b"\x26\x00"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_codec.py -k "raw or b64_to_bytes" -v`
 Expected: FAIL (`no attribute 'raw_to_ticks'`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # append to scripts/ir_codec.py
@@ -241,12 +241,12 @@ def b64_to_bytes(b64: str) -> bytes:
     return base64.b64decode(b64)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_codec.py -v`
 Expected: PASS (6 passed).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/ir_codec.py tests/test_ir_codec.py
@@ -263,7 +263,7 @@ git commit -m "feat(ir): parse Raw signed-us commands to ticks; add b64_to_bytes
 
 Score gates on pulse-count (within ±`count_slack`), then returns the percentage of aligned pulses within ±`tol` relative tolerance.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_ir_match.py
@@ -299,12 +299,12 @@ def test_entry_to_ticks_missing_off_returns_none():
     assert ir_match.entry_to_ticks({"enc": "Base64", "off": None}) is None
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_match.py -v`
 Expected: FAIL (`No module named ... attribute 'score'`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # scripts/ir_match.py
@@ -337,12 +337,12 @@ def entry_to_ticks(entry: dict) -> list[int] | None:
     return None
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_match.py -v`
 Expected: PASS (7 passed). If `test_entry_to_ticks_base64`'s tiny packet raises, replace its `off` with `OFF_1000` imported from the codec test — the assertion only checks it decodes to a non-empty list.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/ir_match.py tests/test_ir_match.py
@@ -359,7 +359,7 @@ git commit -m "feat(ir): pulse-similarity scoring + DB entry decoding"
 
 `mini_db.ndjson` has one JSON object per line: `{device_code, manufacturer, models, enc, off}`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # append to tests/test_ir_match.py
@@ -400,12 +400,12 @@ def test_is_tie_false_when_clear_winner():
 
 Note: `3052 µs ≈ 100 ticks`, so the "near" entry scores 100% against `ref=[100,100,100,100]`; "far" (30520 µs ≈ 1000 ticks) is rejected by tolerance → lower.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_match.py -k "mini_db or rank or tie" -v`
 Expected: FAIL (`no attribute 'load_mini_db'`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # append to scripts/ir_match.py
@@ -440,12 +440,12 @@ def is_tie(ranked: list[dict], margin: float = 3.0) -> bool:
     return len(ranked) >= 2 and (ranked[0]["score"] - ranked[1]["score"]) < margin
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_ir_match.py -v`
 Expected: PASS (11 passed).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/ir_match.py tests/test_ir_match.py
@@ -462,7 +462,7 @@ git commit -m "feat(ir): mini-DB load, ranking, and tie detection"
 
 `clean_captures` rejects outlier-length captures and medians the survivors; needs ≥2 agreeing captures or it raises (so the orchestrator can re-prompt).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_find_ir_codeset.py
@@ -488,12 +488,12 @@ def test_format_report_confirmed():
     assert "Tornado" in out and "RGS-XYZ" in out and "1234" in out
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_find_ir_codeset.py -v`
 Expected: FAIL (`no attribute 'clean_captures'`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # scripts/find_ir_codeset.py
@@ -536,12 +536,12 @@ def format_report(entry: dict, match_score: float, confirmed: bool) -> str:
     )
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/test_find_ir_codeset.py -v`
 Expected: PASS (4 passed).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/find_ir_codeset.py tests/test_find_ir_codeset.py
@@ -557,7 +557,7 @@ git commit -m "feat(ir): capture cleaning (median) + match report formatting"
 
 DB sourcing is I/O (git + filesystem), verified manually rather than unit-tested.
 
-- [ ] **Step 1: Implement DB fetch + mini-DB build**
+- [x] **Step 1: Implement DB fetch + mini-DB build**
 
 ```python
 # append to scripts/find_ir_codeset.py
@@ -624,7 +624,7 @@ def build_mini_db(db_dir: str, force: bool = False) -> str:
     return mini
 ```
 
-- [ ] **Step 2: Manually verify the build**
+- [x] **Step 2: Manually verify the build**
 
 Run:
 ```bash
@@ -633,7 +633,7 @@ Run:
 ```
 Expected: prints the mini-DB path and ~363 rows. Re-running without `force` returns instantly.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/find_ir_codeset.py
@@ -649,7 +649,7 @@ git commit -m "feat(ir): sparse-clone code-set DB to /tmp + build mini_db.ndjson
 
 Wires capture → clean → match → adaptive disambiguation → replay-confirm → report. Hardware paths verified manually (Task 10).
 
-- [ ] **Step 1: Implement device I/O + orchestration**
+- [x] **Step 1: Implement device I/O + orchestration**
 
 ```python
 # append to scripts/find_ir_codeset.py
@@ -809,17 +809,17 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 2: Smoke-test the CLI wiring (no hardware)**
+- [x] **Step 2: Smoke-test the CLI wiring (no hardware)**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m scripts.find_ir_codeset --help`
 Expected: argparse usage prints with all flags; no import errors.
 
-- [ ] **Step 3: Re-run the full unit suite**
+- [x] **Step 3: Re-run the full unit suite**
 
 Run: `~/.pyenv/versions/homeautomation/bin/python -m pytest tests/ -v`
 Expected: all tests from Tasks 2-7 still PASS (no regressions).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/find_ir_codeset.py
@@ -833,7 +833,7 @@ git commit -m "feat(ir): orchestrator — capture, match, disambiguate, replay-c
 **Files:**
 - Modify: `docs/state-of-world.md`
 
-- [ ] **Step 1: Live test in Dana's office**
+- [x] **Step 1: Live test in Dana's office**
 
 Run (Mac, on the LAN; the AC powered ON so OFF is observable):
 ```bash
@@ -842,11 +842,11 @@ Run (Mac, on the LAN; the AC powered ON so OFF is observable):
 ```
 Expected: prompts for OFF ×3 → prints a ranked shortlist → replays the top candidate → on "y", prints the `MATCH` report with manufacturer/model/device_code.
 
-- [ ] **Step 2: Confirm in HA**
+- [x] **Step 2: Confirm in HA**
 
 In Home Assistant, add `ar_smart_ir` → Climate → pick the reported manufacturer/model (device_code), controller `remote.danaofficeremote`. Verify the AC responds to a climate command.
 
-- [ ] **Step 3: Repeat for the master/main AC**
+- [x] **Step 3: Repeat for the master/main AC**
 
 Run with the living-room RM4 Pro:
 ```bash
@@ -854,11 +854,11 @@ Run with the living-room RM4 Pro:
   --device-ip 192.168.1.18 --controller remote.broadlink_main_ac_and_fans
 ```
 
-- [ ] **Step 4: Mark backlog item #2 done**
+- [x] **Step 4: Mark backlog item #2 done**
 
 In `docs/state-of-world.md`, update Section 7 item 2 (IR code-set finder script) to note it is implemented (`scripts/find_ir_codeset.py`), keeping the remaining "main-AC IR codes" hookup as the open follow-up.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/state-of-world.md
