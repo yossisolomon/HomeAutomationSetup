@@ -128,3 +128,14 @@ git config core.hooksPath scripts/git-hooks
   Node-RED flows, and regenerates the ToC.
 
 See `docs/automation-architecture.md` for authoring conventions.
+
+## HACS plugins
+
+HACS-installed integrations are **not** vendored in git (the `config/custom_components/*/`
+dirs are gitignored). The installed set and pinned versions live in
+[`hacs-manifest.yaml`](hacs-manifest.yaml); its header carries the rebuild runbook.
+Regenerate after installing/updating a plugin (on blacky, where the HACS store lives):
+
+```bash
+sudo python3 scripts/gen_hacs_manifest.py
+```

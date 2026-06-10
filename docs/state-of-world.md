@@ -140,11 +140,14 @@ Rough priority order; each item becomes its own spec doc when actioned.
     container; host networking doesn't need privileged); recreating the container is a brief
     HA restart.
 11. **Reconcile blacky git drift** *(part of #10)* — live config on blacky is not fully in
-    git: `zigbee2mqtt/config/configuration.yaml` is tracked but has uncommitted local edits;
-    `config/custom_components/ar_smart_ir/` and `config/custom_components/qingping_cgs1/` are
-    **untracked** (HACS-installed post-init, not backed up — `ar_smart_ir` likely feeds the
-    IR-finder task). Commit the z2m edit and decide track-vs-gitignore for the HACS
-    components so git is the real source of truth.
+    git: `zigbee2mqtt/config/configuration.yaml` is tracked but has uncommitted local edits.
+    ✅ **HACS components resolved:** all `config/custom_components/*/` plugin dirs are now
+    gitignored and tracked via [`hacs-manifest.yaml`](../hacs-manifest.yaml) (manifest-only
+    policy; see the [HACS plugin tracking spec](superpowers/specs/2026-06-09-hacs-plugin-tracking-design.md)).
+    ⚠️ **blacky-pull hazard:** blacky runs HA from those (now untracked) dirs and is behind on
+    `main`; the untrack commit deletes those paths, so blacky's eventual reconciliation must
+    **not** blind-`pull`/checkout them away — they reinstall via the manifest if removed.
+    Remaining: commit the z2m edit.
 12. **`scripts/` subject-dir reorg** *(refactor spec)* — `scripts/` has grown into a flat mix
     (RF learn/sync, ToC generator, NR normalizer, git-hooks, IR finder). Group by subject
     (`scripts/rf/`, `scripts/ir/`, `scripts/docs/`, keep `scripts/git-hooks/`). Cross-cutting:
