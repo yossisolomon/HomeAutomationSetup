@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "key": "hacs.repositories",
+  "data": [
+    {
+      "full_name": "rospogrigio/localtuya",
+      "domain": "localtuya",
+      "category": "integration",
+      "installed": true,
+      "version_installed": "2025.5.0",
+      "installed_commit": "aaaaaaa"
+    },
+    {
+      "full_name": "marsh4200/ar_smart_ir",
+      "domain": "ar_smart_ir",
+      "category": "integration",
+      "installed": true,
+      "version_installed": null,
+      "installed_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "full_name": "some/not-installed",
+      "domain": "noop",
+      "category": "integration",
+      "installed": false,
+      "version_installed": null,
+      "installed_commit": "ccccccc"
+    }
+  ]
+}
