@@ -12,6 +12,8 @@ secrets.yaml
 
 # ── Home Assistant ────────────────────────────────────────────────────────────
 config/.storage/
+# HACS-installed plugins — tracked via hacs-manifest.yaml, not vendored.
+config/custom_components/*/
 
 # ── Mosquitto ──────────────────────────────────────────────────────────────────
 mosquitto/data/
