@@ -40,11 +40,39 @@ def clean_captures(captures: list[list[int]]) -> list[int]:
     return [int(statistics.median(col)) for col in zip(*keep)]
 
 
-def format_report(entry: dict, match_score: float, confirmed: bool) -> str:
+def format_score(off_score: float, cool_score: float | None = None) -> str:
+    """OFF and COOL scores shown as separate components, never summed (a sum reads
+    as a meaningless >100% figure)."""
+    out = f"OFF {off_score:.0f}%"
+    if cool_score is not None:
+        out += f" + COOL {cool_score:.0f}%"
+    return out
+
+
+def format_candidate_line(entry: dict) -> str:
+    models = ", ".join(entry.get("models") or []) or "?"
+    return (f"  {format_score(entry['score'], entry.get('score2'))}  "
+            f"code {entry.get('device_code', '?'):>5}  "
+            f"{entry.get('manufacturer', '?')}  {models}")
+
+
+def format_off_table(ranked: list[dict], top: int) -> str:
+    """OFF-only ranking — shown when the top candidates tie on OFF, so it's visible
+    why a 2nd command is being captured."""
+    lines = ["OFF-only ranking (tie — capturing a 2nd command to break it):"]
+    for e in ranked[:top]:
+        models = ", ".join(e.get("models") or []) or "?"
+        lines.append(f"  OFF {e['score']:5.1f}%  code {e.get('device_code', '?'):>5}  "
+                     f"{e.get('manufacturer', '?')}  {models}")
+    return "\n".join(lines)
+
+
+def format_report(entry: dict, confirmed: bool,
+                  off_score: float, cool_score: float | None = None) -> str:
     tag = "replay-confirmed" if confirmed else "unconfirmed"
     models = ", ".join(entry.get("models") or []) or "?"
     return (
-        f"MATCH ({match_score:.0f}%, {tag}):\n"
+        f"MATCH ({format_score(off_score, cool_score)}, {tag}):\n"
         f"  manufacturer : {entry.get('manufacturer', '?')}\n"
         f"  model        : {models}\n"
         f"  device_code  : {entry.get('device_code', '?')}\n"
@@ -240,7 +268,7 @@ def main(argv=None) -> int:
         return 1
 
     if ir_match.is_tie(ranked):
-        print("Top candidates tie on OFF — capturing a 2nd command to disambiguate.")
+        print(format_off_table(ranked, args.top))
         print("Set the remote to COOL, a fixed temperature, and a fixed fan speed, then send it.")
         ref2 = capture(dev, "COOL/<temp>/<fan>", args.captures, args.timeout)
         shortlist = ranked[: args.top]
@@ -256,11 +284,7 @@ def main(argv=None) -> int:
 
     print("\nTop candidates (ranked by match score):")
     for e in ranked[: args.top]:
-        s2 = e.get("score2")
-        label = (f"{e['score'] + s2:6.1f}% (off {e['score']:.0f} + cool {s2:.0f})"
-                 if s2 is not None else f"{e['score']:6.1f}%")
-        print(f"  {label}  code {e['device_code']:>5}  "
-              f"{e.get('manufacturer', '?')}  {', '.join(e.get('models') or []) or '?'}")
+        print(format_candidate_line(e))
 
     confirmed = None
     for entry in ranked[: args.top]:
@@ -275,8 +299,8 @@ def main(argv=None) -> int:
             break
 
     chosen = confirmed or ranked[0]
-    reported = chosen["score"] + chosen.get("score2", 0.0)
-    print("\n" + format_report(chosen, reported, confirmed is not None))
+    print("\n" + format_report(chosen, confirmed is not None,
+                               chosen["score"], chosen.get("score2")))
     print(f"→ ar_smart_ir → Climate → manufacturer "
           f"\"{chosen.get('manufacturer','?')}\" → that model")
     print(f"→ controller entity: {args.controller}")
