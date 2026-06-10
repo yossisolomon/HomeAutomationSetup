@@ -289,21 +289,49 @@ def _load_full_codeset(db_dir: str, device_code: str) -> dict:
 
 
 def _extract_cool_command(full: dict):
-    """Best-effort: first cool command found, decoded to ticks. None if absent."""
+    """Best-effort cool command decoded to ticks. Walks the cool subtree to any
+    depth, preferring a real temperature-coded leaf (key like "23") over swing-state
+    or other non-temp leaves. Falls back to the first string leaf. None if absent.
+
+    Code-sets vary in nesting: flat (cool->fan->temp) or swing-nested
+    (cool->fan->swing_state->temp). A naive first-leaf grab picks a swing command,
+    polluting disambiguation, so prefer a temp-keyed leaf.
+    """
     cool = (full.get("commands") or {}).get("cool")
     if not isinstance(cool, dict):
         return None
     enc = (full.get("commandsEncoding") or "").lower()
-    for fan in cool.values():
-        if isinstance(fan, dict):
-            for cmd in fan.values():
-                if isinstance(cmd, str):
-                    try:
-                        return (ir_codec.decode_broadlink_b64(cmd) if enc == "base64"
-                                else ir_codec.raw_to_ticks(cmd))
-                    except (ValueError, TypeError):
-                        return None
-    return None
+
+    def _is_temp_key(k) -> bool:
+        return str(k).isdigit() and 16 <= int(k) <= 32
+
+    fallback = None  # first string leaf, used only if no temp-keyed leaf exists
+
+    def walk(node, under_temp):
+        nonlocal fallback
+        if isinstance(node, str):
+            if under_temp:
+                return node
+            if fallback is None:
+                fallback = node
+            return None
+        if isinstance(node, dict):
+            for k, v in node.items():
+                hit = walk(v, under_temp or _is_temp_key(k))
+                if hit is not None:
+                    return hit
+        return None
+
+    chosen = walk(cool, False)
+    if chosen is None:
+        chosen = fallback
+    if chosen is None:
+        return None
+    try:
+        return (ir_codec.decode_broadlink_b64(chosen) if enc == "base64"
+                else ir_codec.raw_to_ticks(chosen))
+    except (ValueError, TypeError):
+        return None
 
 
 if __name__ == "__main__":
