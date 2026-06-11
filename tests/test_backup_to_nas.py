@@ -89,3 +89,32 @@ def test_plan_retention_does_not_duplicate_existing_month():
     plan = b.plan_retention(existing, today)
     # 2026-06 already present; promotion is idempotent, count stays 1, no prune
     assert plan["prune"]["monthly"] == []
+
+
+def test_latest_snapshot_returns_newest_daily(tmp_path):
+    daily = tmp_path / "daily"
+    daily.mkdir()
+    (daily / "2026-06-09").mkdir()
+    (daily / "2026-06-10").mkdir()
+    (daily / "2026-06-08").mkdir()
+    assert b.latest_snapshot(str(tmp_path)) == str(daily / "2026-06-10")
+
+
+def test_latest_snapshot_none_when_empty(tmp_path):
+    assert b.latest_snapshot(str(tmp_path)) is None
+    (tmp_path / "daily").mkdir()
+    assert b.latest_snapshot(str(tmp_path)) is None  # daily dir exists but empty
+
+
+def test_latest_snapshot_ignores_partial(tmp_path):
+    daily = tmp_path / "daily"
+    daily.mkdir()
+    (daily / "2026-06-10").mkdir()
+    (daily / "2026-06-11.partial").mkdir()  # in-progress run, must be ignored
+    assert b.latest_snapshot(str(tmp_path)) == str(daily / "2026-06-10")
+
+
+def test_is_mountpoint_delegates(monkeypatch):
+    monkeypatch.setattr(b.os.path, "ismount", lambda p: p == "/mnt/nas")
+    assert b.is_mountpoint("/mnt/nas") is True
+    assert b.is_mountpoint("/tmp/nope") is False

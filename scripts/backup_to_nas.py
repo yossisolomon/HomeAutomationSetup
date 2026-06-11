@@ -65,3 +65,24 @@ def plan_retention(existing: dict, today: datetime.date,
                                     {names["monthly"]} if promote_monthly else set(), monthly_cap),
         },
     }
+
+
+def latest_snapshot(dest: str) -> str | None:
+    """Absolute path to the newest committed daily snapshot, or None if none exist.
+
+    Ignores `.partial` dirs (in-progress/crashed runs). ISO date names sort
+    chronologically, so the newest is the lexical max.
+    """
+    daily = os.path.join(dest, "daily")
+    if not os.path.isdir(daily):
+        return None
+    names = [n for n in os.listdir(daily)
+             if not n.endswith(".partial") and os.path.isdir(os.path.join(daily, n))]
+    if not names:
+        return None
+    return os.path.join(daily, max(names))
+
+
+def is_mountpoint(path: str) -> bool:
+    """True if `path` is a mounted filesystem (guards against writing to an unmounted HDD)."""
+    return os.path.ismount(path)
