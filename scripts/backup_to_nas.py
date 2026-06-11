@@ -1,8 +1,8 @@
 """Take GFS-tiered, hardlink-dedup'd snapshots of blacky's durable HA state to the NAS.
 
 Runs as root from cron (reads dirs owned by nobody/root/container UIDs). Pure
-functions (retention math, exclude loading, snapshot discovery) + a thin imperative
-main(). Stdlib only. See docs/superpowers/specs/2026-06-11-nas-snapshot-retention-design.md.
+functions (retention math, snapshot discovery) + a thin imperative main(). Stdlib
+only. See docs/superpowers/specs/2026-06-11-nas-snapshot-retention-design.md.
 """
 import argparse
 import datetime
@@ -10,18 +10,6 @@ import os
 import shutil
 import subprocess
 import sys
-
-
-def load_excludes(path: str) -> list[str]:
-    """Return rsync exclude patterns from a file, ignoring comments and blank lines."""
-    out = []
-    with open(path, encoding="utf-8") as fh:
-        for line in fh:
-            s = line.strip()
-            if not s or s.startswith("#"):
-                continue
-            out.append(s)
-    return out
 
 
 def tier_names(today: datetime.date) -> dict:
@@ -68,19 +56,22 @@ def plan_retention(existing: dict, today: datetime.date,
 
 
 def latest_snapshot(dest: str) -> str | None:
-    """Absolute path to the newest committed daily snapshot, or None if none exist.
+    """Absolute path to the newest committed snapshot to use as the --link-dest anchor.
 
-    Ignores `.partial` dirs (in-progress/crashed runs). ISO date names sort
-    chronologically, so the newest is the lexical max.
+    Prefers the newest daily (always freshest, since a daily is written every run);
+    falls back to the newest weekly then monthly so dedup survives even if dailies were
+    cleared. Ignores `.partial` dirs. Names sort chronologically within a tier, so the
+    newest is the lexical max. Returns None if no snapshot exists (first run -> full copy).
     """
-    daily = os.path.join(dest, "daily")
-    if not os.path.isdir(daily):
-        return None
-    names = [n for n in os.listdir(daily)
-             if not n.endswith(".partial") and os.path.isdir(os.path.join(daily, n))]
-    if not names:
-        return None
-    return os.path.join(daily, max(names))
+    for tier in ("daily", "weekly", "monthly"):
+        d = os.path.join(dest, tier)
+        if not os.path.isdir(d):
+            continue
+        names = [n for n in os.listdir(d)
+                 if not n.endswith(".partial") and os.path.isdir(os.path.join(d, n))]
+        if names:
+            return os.path.join(d, max(names))
+    return None
 
 
 def is_mountpoint(path: str) -> bool:
@@ -144,7 +135,15 @@ def main(argv=None) -> int:
     today = (datetime.date.fromisoformat(args.date) if args.date
              else datetime.date.today())
     wd = args.weekly_day.lower()
-    weekly_day = WEEKDAYS.index(wd) if wd in WEEKDAYS else int(wd)
+    if wd in WEEKDAYS:
+        weekly_day = WEEKDAYS.index(wd)
+    else:
+        try:
+            weekly_day = int(wd)
+        except ValueError:
+            p.error(f"--weekly-day must be mon..sun or 0..6, got {args.weekly_day!r}")
+        if not 0 <= weekly_day <= 6:
+            p.error(f"--weekly-day must be 0..6, got {weekly_day}")
 
     if not is_mountpoint(args.mount):
         print(f"{args.mount} not mounted — aborting (refusing to write to local fs).",
@@ -175,10 +174,12 @@ def main(argv=None) -> int:
     if plan["promote_weekly"]:
         wdir = os.path.join(args.dest, "weekly", names["weekly"])
         if not os.path.exists(wdir):
+            os.makedirs(os.path.dirname(wdir), exist_ok=True)
             promote(daily_dir, wdir)
     if plan["promote_monthly"]:
         mdir = os.path.join(args.dest, "monthly", names["monthly"])
         if not os.path.exists(mdir):
+            os.makedirs(os.path.dirname(mdir), exist_ok=True)
             promote(daily_dir, mdir)
 
     for tier, victims in plan["prune"].items():

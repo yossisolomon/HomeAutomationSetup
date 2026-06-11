@@ -5,24 +5,6 @@ import pytest
 from scripts import backup_to_nas as b
 
 
-def test_load_excludes_strips_comments_and_blanks(tmp_path):
-    f = tmp_path / "ex.txt"
-    f.write_text(
-        "# a comment\n"
-        "prometheus/data/\n"
-        "\n"
-        "   # indented comment\n"
-        "*.log\n"
-        "  config/home-assistant_v2.db  \n",
-        encoding="utf-8",
-    )
-    assert b.load_excludes(str(f)) == [
-        "prometheus/data/",
-        "*.log",
-        "config/home-assistant_v2.db",
-    ]
-
-
 def test_tier_names():
     d = datetime.date(2026, 6, 11)  # a Thursday, ISO week 24
     assert b.tier_names(d) == {
@@ -218,3 +200,44 @@ def test_main_happy_path_commits_and_promotes(tmp_path, monkeypatch):
     assert not (dest / "daily" / "2026-06-01.partial").exists()
     assert (str(dest / "daily" / "2026-06-01"),
             str(dest / "monthly" / "2026-06")) in promotes  # monthly promo on the 1st
+
+
+def test_latest_snapshot_falls_back_to_weekly(tmp_path):
+    weekly = tmp_path / "weekly"
+    weekly.mkdir()
+    (weekly / "2026-W23").mkdir()
+    (weekly / "2026-W24").mkdir()
+    # no daily dir at all -> fall back to the newest weekly
+    assert b.latest_snapshot(str(tmp_path)) == str(weekly / "2026-W24")
+
+
+def test_main_creates_tier_parent_before_promote(tmp_path, monkeypatch):
+    # Regression for the cp -al crash: main must create dest/<tier>/ before promoting.
+    monkeypatch.setattr(b, "is_mountpoint", lambda p: True)
+    ex = tmp_path / "ex.txt"; ex.write_text("\n")
+    dest = tmp_path / "s"
+
+    def fake_rsync(root, dest_partial, link_dest, excludes_file):
+        os.makedirs(dest_partial, exist_ok=True)
+        return 0
+
+    seen = {}
+
+    def fake_promote(src, dst):
+        seen[dst] = os.path.isdir(os.path.dirname(dst))  # parent must exist at call time
+
+    monkeypatch.setattr(b, "run_rsync", fake_rsync)
+    monkeypatch.setattr(b, "promote", fake_promote)
+    rc = b.main(["--root", str(tmp_path), "--dest", str(dest), "--mount", str(tmp_path),
+                 "--excludes", str(ex), "--date", "2026-06-01", "--weekly-day", "6"])
+    assert rc == 0
+    mdir = str(dest / "monthly" / "2026-06")
+    assert seen.get(mdir) is True  # main created dest/monthly/ before promoting
+
+
+def test_main_rejects_bad_weekly_day(tmp_path, monkeypatch):
+    monkeypatch.setattr(b, "is_mountpoint", lambda p: True)
+    with pytest.raises(SystemExit):
+        b.main(["--root", str(tmp_path), "--dest", str(tmp_path / "s"),
+                "--mount", str(tmp_path), "--excludes", str(tmp_path / "e"),
+                "--weekly-day", "funday"])
