@@ -70,6 +70,7 @@
 | Vacuum | Roborock | |
 | TV | LG TV + Android TV | |
 | Zigbee | zigbee2mqtt — **2 of 8 plant soil-moisture sensors paired** | |
+| Printing | CUPS — Brother HL-1110 (USB, brlaser) | shared driverless IPP-Everywhere; LAN print, localhost admin |
 
 ---
 
@@ -121,7 +122,12 @@ Rough priority order; each item becomes its own spec doc when actioned.
 
 1. **Climate flagship** — air-quality-driven air-purifier control, replacing the current daily schedule; add a window-vs-AC call-to-action based on outdoor air quality.
 2. ✅ **IR code-set finder script** *(done — `scripts/find_ir_codeset.py` + `ir_codec.py` + `ir_match.py`)* — records via Broadlink IR-learn, searches the `ar_smart_ir` IR database to identify the right code set. Validated on two ACs: Dana's office (RM4 mini `192.168.1.19`) → **code 1622 — Tornado Master-22 X** (full temp matrix + swing: stop/hSwing/vSwing/swing); main/central (RM4 Pro `192.168.1.18`) → **code 1581 — Chigo ZH/TY-01** (cool/dry/fan validated, no swing — vented mini-central). Both empirically confirmed on hardware. Note: ar_smart_ir `model` field = remote-controller part number (generic/rebadged), not AC brand — match by replay-confirm, not name.
-3. **CUPS print server** — Brother USB laser → LAN, hosted on `blacky`.
+3. ✅ **CUPS print server** *(done — host CUPS + brlaser on blacky; config `cups/cupsd.conf`,
+   queue + UFW provisioned by `setup.sh`)* — Brother HL-1110 (USB, GDI) shared as a
+   driverless IPP-Everywhere queue over the existing avahi/DNS-SD; Android/Windows/Apple/Linux
+   print with no client driver. Admin UI bound to localhost (manage via
+   `ssh -L 6310:localhost:631 blacky`); LAN may print only. A4 default. Printer is manually
+   powered — the queue holds when it's off and resumes when on.
 4. **Remote access** — Nabu Casa vs Cloudflare Tunnel; decision pending.
 5. **Window-open sensing** — current Zigbee contact sensors are too thick for the sliding-pane gap; needs an alternative form factor.
 6. **Boiler cavity temp probe** — Dolphin-style internal water-temp sensor feeding a "water is hot" notification.

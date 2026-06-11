@@ -69,3 +69,9 @@ nodered/data/.sessions.json
 nodered/data/node_modules/
 nodered/data/lib/node_modules/
 nodered/data/.npm/
+
+# ── CUPS ─────────────────────────────────────────────────────────────────────
+# Track only the cupsd.conf template; ignore any runtime/state files that might
+# land in cups/ (printers.conf etc. are regenerated on the host by lpadmin).
+cups/*
+!cups/cupsd.conf
