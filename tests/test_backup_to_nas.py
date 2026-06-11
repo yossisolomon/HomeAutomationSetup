@@ -165,3 +165,56 @@ def test_prune_dirs_removes_each(tmp_path):
 
 def test_prune_dirs_tolerates_missing(tmp_path):
     b.prune_dirs([str(tmp_path / "ghost")])  # must not raise
+
+
+def test_main_aborts_when_not_mounted(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(b, "is_mountpoint", lambda p: False)
+    rc = b.main(["--root", str(tmp_path), "--dest", str(tmp_path / "snapshots"),
+                 "--mount", "/mnt/nas", "--excludes", str(tmp_path / "ex.txt")])
+    assert rc == 3
+    assert "not mounted" in capsys.readouterr().err.lower()
+
+
+def test_main_dry_run_writes_nothing(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(b, "is_mountpoint", lambda p: True)
+    ex = tmp_path / "ex.txt"; ex.write_text("*.log\n")
+    dest = tmp_path / "snapshots"
+    rc = b.main(["--root", str(tmp_path), "--dest", str(dest), "--mount", str(tmp_path),
+                 "--excludes", str(ex), "--date", "2026-06-10", "--dry-run"])
+    assert rc == 0
+    assert not dest.exists()  # nothing created
+    assert "DRY-RUN" in capsys.readouterr().out
+
+
+def test_main_rsync_failure_returns_4_and_skips_prune(tmp_path, monkeypatch):
+    monkeypatch.setattr(b, "is_mountpoint", lambda p: True)
+    ex = tmp_path / "ex.txt"; ex.write_text("\n")
+    pruned = []
+    monkeypatch.setattr(b, "run_rsync", lambda *a, **k: 23)  # 23 = partial transfer error
+    monkeypatch.setattr(b, "prune_dirs", lambda paths: pruned.extend(paths))
+    rc = b.main(["--root", str(tmp_path), "--dest", str(tmp_path / "s"),
+                 "--mount", str(tmp_path), "--excludes", str(ex), "--date", "2026-06-10"])
+    assert rc == 4
+    assert pruned == []  # never prune after a failed copy
+
+
+def test_main_happy_path_commits_and_promotes(tmp_path, monkeypatch):
+    monkeypatch.setattr(b, "is_mountpoint", lambda p: True)
+    ex = tmp_path / "ex.txt"; ex.write_text("\n")
+    dest = tmp_path / "s"
+
+    def fake_rsync(root, dest_partial, link_dest, excludes_file):
+        os.makedirs(dest_partial, exist_ok=True)  # simulate rsync creating the tree
+        return 24  # vanished-files, treated as success
+
+    promotes = []
+    monkeypatch.setattr(b, "run_rsync", fake_rsync)
+    monkeypatch.setattr(b, "promote", lambda s, d: promotes.append((s, d)))
+    # 2026-06-01 day==1 forces monthly; set weekly_day to 6 to avoid asserting weekly
+    rc = b.main(["--root", str(tmp_path), "--dest", str(dest), "--mount", str(tmp_path),
+                 "--excludes", str(ex), "--date", "2026-06-01", "--weekly-day", "6"])
+    assert rc == 0
+    assert (dest / "daily" / "2026-06-01").is_dir()        # .partial committed
+    assert not (dest / "daily" / "2026-06-01.partial").exists()
+    assert (str(dest / "daily" / "2026-06-01"),
+            str(dest / "monthly" / "2026-06")) in promotes  # monthly promo on the 1st

@@ -107,3 +107,86 @@ def prune_dirs(paths: list[str]) -> None:
     """Remove each directory tree; tolerate already-gone paths."""
     for p in paths:
         shutil.rmtree(p, ignore_errors=True)
+
+
+WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def _existing_tiers(dest: str) -> dict:
+    out = {}
+    for tier in ("daily", "weekly", "monthly"):
+        d = os.path.join(dest, tier)
+        out[tier] = ([n for n in os.listdir(d)
+                      if not n.endswith(".partial") and os.path.isdir(os.path.join(d, n))]
+                     if os.path.isdir(d) else [])
+    return out
+
+
+def _log(msg: str) -> None:
+    print(msg)
+    subprocess.run(["logger", "-t", "nas-snapshot", msg], check=False)
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(description="GFS snapshot of HA state to the NAS.")
+    p.add_argument("--root", default="/home/yossi/homeassistant", help="backup source root")
+    p.add_argument("--dest", default="/mnt/nas/snapshots", help="snapshot tree root")
+    p.add_argument("--mount", default="/mnt/nas", help="mountpoint that must be mounted")
+    p.add_argument("--excludes",
+                   default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                        "backup-exclude.txt"),
+                   help="rsync exclude-from file")
+    p.add_argument("--weekly-day", default="mon", help="weekday to promote weekly (mon..sun or 0..6)")
+    p.add_argument("--date", default=None, help="override today (YYYY-MM-DD), for testing")
+    p.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
+    args = p.parse_args(argv)
+
+    today = (datetime.date.fromisoformat(args.date) if args.date
+             else datetime.date.today())
+    wd = args.weekly_day.lower()
+    weekly_day = WEEKDAYS.index(wd) if wd in WEEKDAYS else int(wd)
+
+    if not is_mountpoint(args.mount):
+        print(f"{args.mount} not mounted — aborting (refusing to write to local fs).",
+              file=sys.stderr)
+        return 3
+
+    names = tier_names(today)
+    plan = plan_retention(_existing_tiers(args.dest), today, weekly_day=weekly_day)
+
+    if args.dry_run:
+        print(f"DRY-RUN {today}: daily={names['daily']} "
+              f"weekly={'+' if plan['promote_weekly'] else '-'}{names['weekly']} "
+              f"monthly={'+' if plan['promote_monthly'] else '-'}{names['monthly']} "
+              f"prune={plan['prune']}")
+        return 0
+
+    daily_dir = os.path.join(args.dest, "daily", names["daily"])
+    partial = daily_dir + ".partial"
+    os.makedirs(os.path.dirname(daily_dir), exist_ok=True)
+    shutil.rmtree(partial, ignore_errors=True)
+
+    rc = run_rsync(args.root, partial, latest_snapshot(args.dest), args.excludes)
+    if rc not in (0, 24):
+        _log(f"rsync failed (exit {rc}) — leaving .partial, skipping promote/prune.")
+        return 4
+    os.replace(partial, daily_dir)
+
+    if plan["promote_weekly"]:
+        wdir = os.path.join(args.dest, "weekly", names["weekly"])
+        if not os.path.exists(wdir):
+            promote(daily_dir, wdir)
+    if plan["promote_monthly"]:
+        mdir = os.path.join(args.dest, "monthly", names["monthly"])
+        if not os.path.exists(mdir):
+            promote(daily_dir, mdir)
+
+    for tier, victims in plan["prune"].items():
+        prune_dirs([os.path.join(args.dest, tier, n) for n in victims])
+
+    _log(f"snapshot {names['daily']} ok; prune={plan['prune']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
