@@ -37,9 +37,13 @@ services:
   zigbee2mqtt:
     container_name: zigbee2mqtt
     image: koenkk/zigbee2mqtt:latest
+    # z2m REWRITES configuration.yaml at runtime (device pairings, renames), so the
+    # config lives inside data/ rather than a separate tracked config/ file. data/ is
+    # gitignored and NAS-backed by the 04:00 cron; a tracked config here caused constant
+    # working-tree drift and git-pull collisions on every pairing. To recreate the live
+    # config on a fresh host, restore data/ from the NAS backup.
     volumes:
       - ./zigbee2mqtt/data:/app/data
-      - ./zigbee2mqtt/config/configuration.yaml:/app/data/configuration.yaml
       - /run/udev:/run/udev:ro
     devices:
       - /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0:/dev/ttyUSB0
@@ -85,6 +89,10 @@ services:
     environment:
       - PORT=4000
       - MQTT_EXPLORER_SKIP_AUTH=true
+    # Container runs as UID 1001 — host ./mqtt-explorer/data MUST be owned 1001:1001
+    # (chown -R 1001:1001 mqtt-explorer/data) or it silently fails to persist
+    # settings.json/credentials.json and loses the broker connection on every refresh.
+    # The gathered topic tree is browser-side only — not cached here.
     volumes:
       - ./mqtt-explorer/data:/app/data
     restart: unless-stopped
