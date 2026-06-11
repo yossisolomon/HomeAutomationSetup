@@ -167,14 +167,19 @@ Rough priority order; each item becomes its own spec doc when actioned.
     stateless `fan_toggle`, so it has no speed to reset.) Robust alternative if cross-restart /
     physical-remote reconciliation is ever wanted: back `preset_mode` with an `input_select`
     helper + `preset_mode_template` that each action writes.
-14. **Versioned NAS snapshots for backup crons** *(backup hardening)* — the 04:00 crons use
-    `rsync -a --delete src/ /mnt/nas/...`, which is a **mirror, not history**: a source
-    deletion/corruption (z2m DB wipe, bad config write) propagates to the NAS within a day with
-    no recovery point. The HDD has ample room for many snapshots. Move to dated/retained
-    snapshots — e.g. `rsync --backup --backup-dir=$(date +%F)` into a `snapshots/` tree, or
-    `--link-dest` hardlink snapshots (cheap, dedup'd) with a rolling retention prune. Covers the
-    z2m `data/` (now the source of truth for z2m config + network keys), `fans.yaml`, and
-    `rf_codes_cache.json`. Keep the live mirror too if wanted, but add a retained tier.
+14. ✅ **Versioned NAS snapshots** *(done — `scripts/backup_to_nas.py` + `backup-exclude.txt`,
+    installed as a root `/etc/cron.d/nas-snapshot` drop-in by `setup.sh`)* — daily GFS
+    snapshots (7 daily + 4 weekly + 12 monthly) of the durable HA tree to
+    `/mnt/nas/snapshots/`, hardlink-dedup'd via `rsync --link-dest` (plain browsable
+    dirs; restore = `cp`). Excludes the big transient live-writers — `prometheus/data/`
+    and `config/home-assistant_v2.db*` (recorder DB is in HA native backups). Runs as
+    root to read all owners; mount-guarded; atomic `.partial` commit. Replaces the three
+    old per-file mirror crons and folds the un-versioned-crons gap (cron now lives in
+    `setup.sh`).
+15. **Delete superseded NAS mirrors** — once the snapshot tier has run a few cycles and a
+    test restore is confirmed, remove the now-redundant `/mnt/nas/z2m/` and
+    `/mnt/nas/ha-templates/` mirrors and the three old per-file crons from `yossi`'s
+    crontab. Kept during cutover as a safety net.
 
 ## 8. Decision Log
 
