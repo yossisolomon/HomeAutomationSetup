@@ -1,0 +1,10 @@
+# rsync exclude patterns for backup_to_nas.py — paths relative to the backup root.
+# Big transient live-writers: torn-read risk + bulk; recorder DB is in HA native backups.
+prometheus/data/
+config/home-assistant_v2.db
+config/home-assistant_v2.db-shm
+config/home-assistant_v2.db-wal
+*.log
+.git/
+**/node_modules/
+**/__pycache__/
