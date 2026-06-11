@@ -147,7 +147,9 @@ Rough priority order; each item becomes its own spec doc when actioned.
     ⚠️ **blacky-pull hazard:** blacky runs HA from those (now untracked) dirs and is behind on
     `main`; the untrack commit deletes those paths, so blacky's eventual reconciliation must
     **not** blind-`pull`/checkout them away — they reinstall via the manifest if removed.
-    Remaining: commit the z2m edit.
+    ✅ **z2m drift resolved:** z2m's live `configuration.yaml` was a tracked file rewritten
+    at runtime (every pairing → drift/collisions). Moved it into the gitignored,
+    NAS-backed `zigbee2mqtt/data/` dir (dropped the compose bind); config no longer tracked.
 12. **`scripts/` subject-dir reorg** *(refactor spec)* — `scripts/` has grown into a flat mix
     (RF learn/sync, ToC generator, NR normalizer, git-hooks, IR finder). Group by subject
     (`scripts/rf/`, `scripts/ir/`, `scripts/docs/`, keep `scripts/git-hooks/`). Cross-cutting:
@@ -165,8 +167,14 @@ Rough priority order; each item becomes its own spec doc when actioned.
     stateless `fan_toggle`, so it has no speed to reset.) Robust alternative if cross-restart /
     physical-remote reconciliation is ever wanted: back `preset_mode` with an `input_select`
     helper + `preset_mode_template` that each action writes.
-
----
+14. **Versioned NAS snapshots for backup crons** *(backup hardening)* — the 04:00 crons use
+    `rsync -a --delete src/ /mnt/nas/...`, which is a **mirror, not history**: a source
+    deletion/corruption (z2m DB wipe, bad config write) propagates to the NAS within a day with
+    no recovery point. The HDD has ample room for many snapshots. Move to dated/retained
+    snapshots — e.g. `rsync --backup --backup-dir=$(date +%F)` into a `snapshots/` tree, or
+    `--link-dest` hardlink snapshots (cheap, dedup'd) with a rolling retention prune. Covers the
+    z2m `data/` (now the source of truth for z2m config + network keys), `fans.yaml`, and
+    `rf_codes_cache.json`. Keep the live mirror too if wanted, but add a retained tier.
 
 ## 8. Decision Log
 
