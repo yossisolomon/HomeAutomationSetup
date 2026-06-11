@@ -86,3 +86,24 @@ def latest_snapshot(dest: str) -> str | None:
 def is_mountpoint(path: str) -> bool:
     """True if `path` is a mounted filesystem (guards against writing to an unmounted HDD)."""
     return os.path.ismount(path)
+
+
+def run_rsync(root: str, dest_partial: str, link_dest: str | None, excludes_file: str) -> int:
+    """rsync `root/` into `dest_partial/` with archive+delete, excludes, and optional
+    hardlink dedup against `link_dest`. Returns the rsync exit code."""
+    argv = ["rsync", "-a", "--delete", f"--exclude-from={excludes_file}"]
+    if link_dest:
+        argv.append(f"--link-dest={link_dest}")
+    argv += [root.rstrip("/") + "/", dest_partial.rstrip("/") + "/"]
+    return subprocess.run(argv).returncode
+
+
+def promote(src_dir: str, dest_dir: str) -> None:
+    """Recursively hardlink `src_dir` into `dest_dir` (cp -al) — no data re-copied."""
+    subprocess.run(["cp", "-al", src_dir, dest_dir], check=True)
+
+
+def prune_dirs(paths: list[str]) -> None:
+    """Remove each directory tree; tolerate already-gone paths."""
+    for p in paths:
+        shutil.rmtree(p, ignore_errors=True)

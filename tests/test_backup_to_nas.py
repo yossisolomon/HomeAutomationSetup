@@ -118,3 +118,50 @@ def test_is_mountpoint_delegates(monkeypatch):
     monkeypatch.setattr(b.os.path, "ismount", lambda p: p == "/mnt/nas")
     assert b.is_mountpoint("/mnt/nas") is True
     assert b.is_mountpoint("/tmp/nope") is False
+
+
+def test_run_rsync_builds_expected_argv(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, **kw):
+        captured["argv"] = argv
+        class R:  # noqa: D401 - tiny stub
+            returncode = 0
+        return R()
+
+    monkeypatch.setattr(b.subprocess, "run", fake_run)
+    rc = b.run_rsync("/src", "/dst.partial", "/prev", "/ex.txt")
+    assert rc == 0
+    argv = captured["argv"]
+    assert argv[0] == "rsync"
+    assert "-a" in argv and "--delete" in argv
+    assert "--link-dest=/prev" in argv
+    assert "--exclude-from=/ex.txt" in argv
+    assert argv[-2:] == ["/src/", "/dst.partial/"]  # trailing slashes matter
+
+
+def test_run_rsync_omits_link_dest_when_none(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(b.subprocess, "run",
+                        lambda argv, **kw: captured.update(argv=argv) or type("R", (), {"returncode": 0})())
+    b.run_rsync("/src", "/dst.partial", None, "/ex.txt")
+    assert not any(a.startswith("--link-dest") for a in captured["argv"])
+
+
+def test_promote_invokes_cp_al(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(b.subprocess, "run",
+                        lambda argv, **kw: captured.update(argv=argv) or type("R", (), {"returncode": 0})())
+    b.promote("/snap/daily/2026-06-10", "/snap/weekly/2026-W24")
+    assert captured["argv"] == ["cp", "-al", "/snap/daily/2026-06-10", "/snap/weekly/2026-W24"]
+
+
+def test_prune_dirs_removes_each(tmp_path):
+    d1 = tmp_path / "a"; d1.mkdir(); (d1 / "f").write_text("x")
+    d2 = tmp_path / "b"; d2.mkdir()
+    b.prune_dirs([str(d1), str(d2)])
+    assert not d1.exists() and not d2.exists()
+
+
+def test_prune_dirs_tolerates_missing(tmp_path):
+    b.prune_dirs([str(tmp_path / "ghost")])  # must not raise
