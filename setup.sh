@@ -562,6 +562,22 @@ else
     warn "  mount -a"
 fi
 
+# ── 7b. NAS snapshot cron ─────────────────────────────────────────────────────
+# Versioned daily GFS snapshot of durable HA state (scripts/backup_to_nas.py).
+# Installed as a root cron.d drop-in so it survives rebuilds (the script reads
+# dirs owned by nobody/root/container UIDs, so it must run as root).
+CRON_DROPIN="/etc/cron.d/nas-snapshot"
+cat > "$CRON_DROPIN" <<CRON
+# Managed by setup.sh — daily NAS snapshot (backlog #14). Do not hand-edit.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 4 * * * root /usr/bin/python3 ${HA_DIR}/scripts/backup_to_nas.py >/dev/null 2>&1
+CRON
+chmod 644 "$CRON_DROPIN"
+info "Installed NAS snapshot cron at ${CRON_DROPIN} (daily 04:00, as root)"
+warn "Old per-file backup crons in ${MAIN_USER}'s crontab are superseded — remove them:"
+warn "  sudo -u ${MAIN_USER} crontab -e   # delete the z2m / fans.yaml / rf_codes_cache lines"
+
 # ── 8. GitHub SSH key check ───────────────────────────────────────────────────
 MAIN_USER_HOME="/home/${MAIN_USER}"
 SSH_KEY="${MAIN_USER_HOME}/.ssh/github_id"
