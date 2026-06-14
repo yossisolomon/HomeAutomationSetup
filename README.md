@@ -158,7 +158,7 @@ gh api -X PATCH repos/yossisolomon/HomeAutomationSetup \
 gh api -X PUT repos/yossisolomon/HomeAutomationSetup/branches/main/protection \
   --input - <<'JSON'
 {
-  "required_status_checks": {"strict": true, "contexts": ["CI / lint", "CI / toc", "CI / pytest", "CI / normalizer"]},
+  "required_status_checks": {"strict": true, "contexts": ["lint", "toc", "pytest", "normalizer"]},
   "enforce_admins": true,
   "required_pull_request_reviews": {"required_approving_review_count": 0},
   "restrictions": null,
@@ -173,6 +173,11 @@ JSON
 required): land `ci.yml` via its own PR first (a same-repo PR runs the workflow from the
 PR branch, so the introducing PR is self-checked), squash-merge it, *then* run the
 branch-protection commands above.
+
+> The required-check `contexts` are the **bare job names** (`lint`/`toc`/`pytest`/`normalizer`)
+> — i.e. the GitHub Actions check-run names, **not** `CI / <job>`. Verify the exact strings
+> with `gh api repos/yossisolomon/HomeAutomationSetup/commits/<sha>/check-runs --jq '.check_runs[].name'`
+> before requiring them; a mismatch leaves every PR stuck "Expected — Waiting for status".
 
 See `docs/automation-architecture.md` for authoring conventions.
 
