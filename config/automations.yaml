@@ -58,10 +58,10 @@
                       target:
                         entity_id: number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2
                       data:
-                        # high Manual = the number's own max. Fallback 100 is a last resort if
-                        # max is still unreadable; Task 10 confirms the real max scale and
-                        # replaces 100 with it if the entity is RPM-scaled (not 0-100).
-                        value: "{{ state_attr('number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2', 'max')|int(100) }}"
+                        # high Manual = the number's own max. Confirmed on hardware: this
+                        # entity is RPM-scaled, max 2300 / min 200 (not 0-100), so the
+                        # fallback is 2300 — used only if max is momentarily unreadable.
+                        value: "{{ state_attr('number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2', 'max')|int(2300) }}"
                 - conditions:
                     - condition: state
                       entity_id: binary_sensor.living_air_bad
