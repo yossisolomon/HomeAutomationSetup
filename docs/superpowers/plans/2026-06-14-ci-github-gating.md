@@ -159,7 +159,7 @@ gh api -X PATCH repos/yossisolomon/HomeAutomationSetup \
 gh api -X PUT repos/yossisolomon/HomeAutomationSetup/branches/main/protection \
   --input - <<'JSON'
 {
-  "required_status_checks": {"strict": true, "contexts": ["lint", "toc", "pytest", "normalizer"]},
+  "required_status_checks": {"strict": true, "contexts": ["CI / lint", "CI / toc", "CI / pytest", "CI / normalizer"]},
   "enforce_admins": true,
   "required_pull_request_reviews": {"required_approving_review_count": 0},
   "restrictions": null,
@@ -259,7 +259,7 @@ gh api -X PATCH repos/yossisolomon/HomeAutomationSetup \
 gh api -X PUT repos/yossisolomon/HomeAutomationSetup/branches/main/protection \
   --input - <<'JSON'
 {
-  "required_status_checks": {"strict": true, "contexts": ["lint", "toc", "pytest", "normalizer"]},
+  "required_status_checks": {"strict": true, "contexts": ["CI / lint", "CI / toc", "CI / pytest", "CI / normalizer"]},
   "enforce_admins": true,
   "required_pull_request_reviews": {"required_approving_review_count": 0},
   "restrictions": null,

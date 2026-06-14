@@ -130,8 +130,8 @@ git config core.hooksPath scripts/git-hooks
 ### CI + branch protection
 
 `main` is protected: every change lands through a pull request that must pass CI.
-`.github/workflows/ci.yml` runs four jobs in parallel on each PR (and on every push to
-the PR branch) — `lint`, `toc`, `pytest`, `normalizer` — reusing the same `make`/script
+`.github/workflows/ci.yml` runs four jobs in parallel on each PR (re-runs on every push to
+the PR branch via the `synchronize` event) — `lint`, `toc`, `pytest`, `normalizer` — reusing the same `make`/script
 commands as the local hook, so CI and local agree. Actions are free (public repo).
 
 Feature flow:
@@ -158,7 +158,7 @@ gh api -X PATCH repos/yossisolomon/HomeAutomationSetup \
 gh api -X PUT repos/yossisolomon/HomeAutomationSetup/branches/main/protection \
   --input - <<'JSON'
 {
-  "required_status_checks": {"strict": true, "contexts": ["lint", "toc", "pytest", "normalizer"]},
+  "required_status_checks": {"strict": true, "contexts": ["CI / lint", "CI / toc", "CI / pytest", "CI / normalizer"]},
   "enforce_admins": true,
   "required_pull_request_reviews": {"required_approving_review_count": 0},
   "restrictions": null,
