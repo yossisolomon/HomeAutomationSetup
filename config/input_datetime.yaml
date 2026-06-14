@@ -1,0 +1,35 @@
+living_night_start:
+  name: Living Night Start
+  has_date: false
+  has_time: true
+  initial: "22:00:00"
+
+living_night_end:
+  name: Living Night End
+  has_date: false
+  has_time: true
+  initial: "07:00:00"
+
+master_night_start:
+  name: Master Night Start
+  has_date: false
+  has_time: true
+  initial: "22:00:00"
+
+master_night_end:
+  name: Master Night End
+  has_date: false
+  has_time: true
+  initial: "07:00:00"
+
+mamad_night_start:
+  name: Mamad Night Start
+  has_date: false
+  has_time: true
+  initial: "18:00:00"
+
+mamad_night_end:
+  name: Mamad Night End
+  has_date: false
+  has_time: true
+  initial: "07:00:00"

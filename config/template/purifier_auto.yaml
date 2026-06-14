@@ -1,0 +1,138 @@
+# Air-quality-driven purifier control — derived signals.
+# Consumed by the climate-purifier-* automations. See
+# docs/superpowers/specs/2026-06-14-climate-purifier-auto-design.md
+#
+# NOTE: these are state-based template sensors, so the `this.state` hysteresis
+# memory in *_air_bad does NOT survive an HA restart — on restart this.state is
+# 'unknown', so they re-evaluate against the ON thresholds (fails safe: a sensor
+# only latches on if PM is actually >= the ON line). Intentional trade-off for
+# pure-YAML simplicity; do not convert to trigger-based templates to "fix" it.
+
+- binary_sensor:
+    - name: "Any Window Open"
+      unique_id: any_window_open
+      device_class: window
+      state: >
+        {{
+          (is_state('input_boolean.window_consider_living_balcony', 'on')
+             and is_state('binary_sensor.living_balcony_window_contact', 'on'))
+          or (is_state('input_boolean.window_consider_office', 'on')
+             and is_state('binary_sensor.office_window_contact', 'on'))
+          or (is_state('input_boolean.window_consider_mamad', 'on')
+             and is_state('binary_sensor.mamad_window_contact', 'on'))
+        }}
+
+    - name: "Living Air Bad"
+      unique_id: living_air_bad
+      device_class: problem
+      state: >
+        {% set p25 = [states('sensor.airmonitor2_pm25')|float(0),
+                      states('sensor.zhimi_sg_974057338_vb4_pm2_5_density_p_3_4')|float(0)] | max %}
+        {% set p10 = [states('sensor.airmonitor2_pm10')|float(0),
+                      states('sensor.zhimi_sg_974057338_vb4_pm10_density_p_3_8')|float(0)] | max %}
+        {% if this.state == 'on' %}
+          {{ p25 > 12 or p10 > 30 }}
+        {% else %}
+          {{ p25 >= 25 or p10 >= 50 }}
+        {% endif %}
+
+    - name: "Master Air Bad"
+      unique_id: master_air_bad
+      device_class: problem
+      state: >
+        {% set p25 = [states('sensor.airmonitorlitemaster_pm25')|float(0),
+                      states('sensor.xiaomi_sg_828358399_cpa4_pm2_5_density_p_3_4')|float(0)] | max %}
+        {% set p10 = states('sensor.airmonitorlitemaster_pm10')|float(0) %}
+        {% if this.state == 'on' %}
+          {{ p25 > 12 or p10 > 30 }}
+        {% else %}
+          {{ p25 >= 25 or p10 >= 50 }}
+        {% endif %}
+
+    - name: "Mamad Air Bad"
+      unique_id: mamad_air_bad
+      device_class: problem
+      state: >
+        {% set p25 = [states('sensor.mamadairmonitor_pm25')|float(0),
+                      states('sensor.mamad_compact_pm2_5_density')|float(0)] | max %}
+        {% set p10 = states('sensor.mamadairmonitor_pm10')|float(0) %}
+        {% if this.state == 'on' %}
+          {{ p25 > 12 or p10 > 30 }}
+        {% else %}
+          {{ p25 >= 25 or p10 >= 50 }}
+        {% endif %}
+
+    - name: "Master Air Very Bad"
+      unique_id: master_air_very_bad
+      device_class: problem
+      state: >
+        {% set q = states('sensor.airmonitorlitemaster_pm25')|float(0) %}
+        {% set i = states('sensor.xiaomi_sg_828358399_cpa4_pm2_5_density_p_3_4')|float(0) %}
+        {% set p10 = states('sensor.airmonitorlitemaster_pm10')|float(0) %}
+        {{ (q >= 50 and i >= 50) or p10 >= 100 }}
+
+    - name: "Mamad Air Very Bad"
+      unique_id: mamad_air_very_bad
+      device_class: problem
+      state: >
+        {% set q = states('sensor.mamadairmonitor_pm25')|float(0) %}
+        {% set i = states('sensor.mamad_compact_pm2_5_density')|float(0) %}
+        {% set p10 = states('sensor.mamadairmonitor_pm10')|float(0) %}
+        {{ (q >= 50 and i >= 50) or p10 >= 100 }}
+
+    - name: "Living Is Night"
+      unique_id: living_is_night
+      state: >
+        {% set now_s = now().hour * 3600 + now().minute * 60 + now().second %}
+        {% set start = state_attr('input_datetime.living_night_start', 'timestamp')|int(0) %}
+        {% set end = state_attr('input_datetime.living_night_end', 'timestamp')|int(0) %}
+        {% if start <= end %}
+          {{ start <= now_s < end }}
+        {% else %}
+          {{ now_s >= start or now_s < end }}
+        {% endif %}
+
+    - name: "Master Is Night"
+      unique_id: master_is_night
+      state: >
+        {% set now_s = now().hour * 3600 + now().minute * 60 + now().second %}
+        {% set start = state_attr('input_datetime.master_night_start', 'timestamp')|int(0) %}
+        {% set end = state_attr('input_datetime.master_night_end', 'timestamp')|int(0) %}
+        {% if start <= end %}
+          {{ start <= now_s < end }}
+        {% else %}
+          {{ now_s >= start or now_s < end }}
+        {% endif %}
+
+    - name: "Mamad Is Night"
+      unique_id: mamad_is_night
+      state: >
+        {% set now_s = now().hour * 3600 + now().minute * 60 + now().second %}
+        {% set start = state_attr('input_datetime.mamad_night_start', 'timestamp')|int(0) %}
+        {% set end = state_attr('input_datetime.mamad_night_end', 'timestamp')|int(0) %}
+        {% if start <= end %}
+          {{ start <= now_s < end }}
+        {% else %}
+          {{ now_s >= start or now_s < end }}
+        {% endif %}
+
+    - name: "Living Should Purify"
+      unique_id: living_should_purify
+      state: >
+        {{ is_state('binary_sensor.living_air_bad', 'on')
+           and is_state('input_boolean.purifier_auto_enable', 'on')
+           and is_state('binary_sensor.any_window_open', 'off') }}
+
+    - name: "Master Should Purify"
+      unique_id: master_should_purify
+      state: >
+        {{ is_state('binary_sensor.master_air_bad', 'on')
+           and is_state('input_boolean.purifier_auto_enable', 'on')
+           and is_state('binary_sensor.any_window_open', 'off') }}
+
+    - name: "Mamad Should Purify"
+      unique_id: mamad_should_purify
+      state: >
+        {{ is_state('binary_sensor.mamad_air_bad', 'on')
+           and is_state('input_boolean.purifier_auto_enable', 'on')
+           and is_state('binary_sensor.any_window_open', 'off') }}

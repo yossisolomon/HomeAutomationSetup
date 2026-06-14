@@ -1,0 +1,19 @@
+purifier_auto_enable:
+  name: Purifier Auto Enable
+  icon: mdi:air-purifier
+  initial: true
+
+window_consider_living_balcony:
+  name: Consider Living Balcony Window
+  icon: mdi:window-open-variant
+  initial: true
+
+window_consider_office:
+  name: Consider Office Window
+  icon: mdi:window-open-variant
+  initial: true
+
+window_consider_mamad:
+  name: Consider Mamad Window
+  icon: mdi:window-open-variant
+  initial: false

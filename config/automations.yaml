@@ -1,1 +1,242 @@
-[]
+# meta: intent="auto-run living air purifier on indoor PM, ramp at night to protect bedrooms, stand down when any window open"; waf=med; mode=auto
+- alias: climate-purifier-living
+  id: climate_purifier_living
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id:
+        - binary_sensor.living_should_purify
+        - binary_sensor.living_is_night
+        - binary_sensor.living_air_bad
+        - binary_sensor.master_air_bad
+        - binary_sensor.mamad_air_bad
+        - binary_sensor.any_window_open
+        - input_boolean.purifier_auto_enable
+  actions:
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.purifier_auto_enable
+              state: "off"
+          sequence: []
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.any_window_open
+              state: "on"
+          sequence:
+            - action: fan.turn_off
+              target:
+                entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.living_is_night
+              state: "on"
+          sequence:
+            - choose:
+                - conditions:
+                    - condition: or
+                      conditions:
+                        - condition: state
+                          entity_id: binary_sensor.master_air_bad
+                          state: "on"
+                        - condition: state
+                          entity_id: binary_sensor.mamad_air_bad
+                          state: "on"
+                  sequence:
+                    - action: fan.turn_on
+                      target:
+                        entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                    # let the device come up so its favorite_speed number (and its max attr)
+                    # is available before we read it — avoids the unavailable->fallback race
+                    - delay: "00:00:02"
+                    - action: fan.set_preset_mode
+                      target:
+                        entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                      data:
+                        preset_mode: "Manual"
+                    - action: number.set_value
+                      target:
+                        entity_id: number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2
+                      data:
+                        # high Manual = the number's own max. Fallback 100 is a last resort if
+                        # max is still unreadable; Task 10 confirms the real max scale and
+                        # replaces 100 with it if the entity is RPM-scaled (not 0-100).
+                        value: "{{ state_attr('number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2', 'max')|int(100) }}"
+                - conditions:
+                    - condition: state
+                      entity_id: binary_sensor.living_air_bad
+                      state: "on"
+                  sequence:
+                    - action: fan.turn_on
+                      target:
+                        entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                    - action: fan.set_preset_mode
+                      target:
+                        entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                      data:
+                        preset_mode: "Auto"
+              default:
+                - action: fan.turn_off
+                  target:
+                    entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+      default:
+        - choose:
+            - conditions:
+                - condition: state
+                  entity_id: binary_sensor.living_should_purify
+                  state: "on"
+              sequence:
+                - action: fan.turn_on
+                  target:
+                    entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                - action: fan.set_preset_mode
+                  target:
+                    entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                  data:
+                    preset_mode: "Auto"
+          default:
+            - action: fan.turn_off
+              target:
+                entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+# meta: intent="auto-run master-bedroom purifier; sleep baseline at night, escalate only when air is very bad"; waf=med; mode=auto
+- alias: climate-purifier-master
+  id: climate_purifier_master
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id:
+        - binary_sensor.master_should_purify
+        - binary_sensor.master_is_night
+        - binary_sensor.master_air_very_bad
+        - binary_sensor.any_window_open
+        - input_boolean.purifier_auto_enable
+  actions:
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.purifier_auto_enable
+              state: "off"
+          sequence: []
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.any_window_open
+              state: "on"
+          sequence:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.xiaomi_sg_828358399_cpa4_on_p_2_1
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.master_is_night
+              state: "on"
+          sequence:
+            - action: switch.turn_on
+              target:
+                entity_id: switch.xiaomi_sg_828358399_cpa4_on_p_2_1
+            - choose:
+                - conditions:
+                    - condition: state
+                      entity_id: binary_sensor.master_air_very_bad
+                      state: "on"
+                  sequence:
+                    - action: select.select_option
+                      target:
+                        entity_id: select.xiaomi_sg_828358399_cpa4_mode_p_2_4
+                      data:
+                        option: "Auto"
+              default:
+                - action: select.select_option
+                  target:
+                    entity_id: select.xiaomi_sg_828358399_cpa4_mode_p_2_4
+                  data:
+                    option: "Sleep"
+      default:
+        - choose:
+            - conditions:
+                - condition: state
+                  entity_id: binary_sensor.master_should_purify
+                  state: "on"
+              sequence:
+                - action: switch.turn_on
+                  target:
+                    entity_id: switch.xiaomi_sg_828358399_cpa4_on_p_2_1
+                - action: select.select_option
+                  target:
+                    entity_id: select.xiaomi_sg_828358399_cpa4_mode_p_2_4
+                  data:
+                    option: "Auto"
+          default:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.xiaomi_sg_828358399_cpa4_on_p_2_1
+# meta: intent="auto-run child-room purifier; sleep baseline on early night window, escalate only when air is very bad"; waf=med; mode=auto
+- alias: climate-purifier-mamad
+  id: climate_purifier_mamad
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id:
+        - binary_sensor.mamad_should_purify
+        - binary_sensor.mamad_is_night
+        - binary_sensor.mamad_air_very_bad
+        - binary_sensor.any_window_open
+        - input_boolean.purifier_auto_enable
+  actions:
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.purifier_auto_enable
+              state: "off"
+          sequence: []
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.any_window_open
+              state: "on"
+          sequence:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.mamad_compact_on
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.mamad_is_night
+              state: "on"
+          sequence:
+            - action: switch.turn_on
+              target:
+                entity_id: switch.mamad_compact_on
+            - choose:
+                - conditions:
+                    - condition: state
+                      entity_id: binary_sensor.mamad_air_very_bad
+                      state: "on"
+                  sequence:
+                    - action: select.select_option
+                      target:
+                        entity_id: select.mamad_compact_mode
+                      data:
+                        option: "Auto"
+              default:
+                - action: select.select_option
+                  target:
+                    entity_id: select.mamad_compact_mode
+                  data:
+                    option: "Sleep"
+      default:
+        - choose:
+            - conditions:
+                - condition: state
+                  entity_id: binary_sensor.mamad_should_purify
+                  state: "on"
+              sequence:
+                - action: switch.turn_on
+                  target:
+                    entity_id: switch.mamad_compact_on
+                - action: select.select_option
+                  target:
+                    entity_id: select.mamad_compact_mode
+                  data:
+                    option: "Auto"
+          default:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.mamad_compact_on

@@ -12,7 +12,9 @@ See `docs/automation-architecture.md` for how automations are authored.
 <!-- AUTOGEN:automations START -->
 | name | engine | file | intent | waf | mode |
 |------|--------|------|--------|-----|------|
-| _(none yet)_ | | | | | |
+| climate-purifier-living | HA-automation | automations.yaml | auto-run living air purifier on indoor PM, ramp at night to protect bedrooms, stand down when any window open | med | auto |
+| climate-purifier-mamad | HA-automation | automations.yaml | auto-run child-room purifier | med | auto |
+| climate-purifier-master | HA-automation | automations.yaml | auto-run master-bedroom purifier | med | auto |
 <!-- AUTOGEN:automations END -->
 
 ## Design notes
