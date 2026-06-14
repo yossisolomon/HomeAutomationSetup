@@ -191,6 +191,14 @@ Rough priority order; each item becomes its own spec doc when actioned.
     test restore is confirmed, remove the now-redundant `/mnt/nas/z2m/` and
     `/mnt/nas/ha-templates/` mirrors and the three old per-file crons from `yossi`'s
     crontab. Kept during cutover as a safety net.
+16. ✅ **CI — GitHub PR gating** *(done — `.github/workflows/ci.yml`)* — four parallel jobs
+    (`lint` / `toc` / `pytest` / `normalizer`) gate every PR to `main`; branch protection
+    requires them + a PR (squash-only, linear history, no auto-merge). Makes `origin/main`
+    trustworthy before blacky pulls. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-14-ci-github-gating*`.
+17. **CD — blacky safe auto-deploy** — poller on blacky: fetch `origin/main`, run HA
+    `check_config` in the real container (where HACS integrations + `secrets.yaml` live),
+    reload/rollback on result, Telegram-alert. Replaces the forgettable manual `make check`.
+    **Depends on #10** (chown `config/` off root so an unattended `git pull` works).
 
 ## 8. Decision Log
 
