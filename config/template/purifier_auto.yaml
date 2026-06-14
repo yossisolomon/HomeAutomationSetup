@@ -15,12 +15,16 @@
       state: >
         {{
           (is_state('input_boolean.window_consider_living_balcony', 'on')
-             and is_state('binary_sensor.living_balcony_window_contact', 'on'))
+             and not is_state('binary_sensor.windowlivingroom_contact', 'off'))
           or (is_state('input_boolean.window_consider_office', 'on')
-             and is_state('binary_sensor.office_window_contact', 'on'))
+             and not is_state('binary_sensor.windowyossi_contact', 'off'))
           or (is_state('input_boolean.window_consider_mamad', 'on')
              and is_state('binary_sensor.mamad_window_contact', 'on'))
         }}
+      # Living balcony + office contacts are paired (device_class door): open ('on') or
+      # lost ('unavailable'/'unknown') both count as open — fail-open so a dead/dropped
+      # sensor suppresses filtering rather than running against a maybe-open window.
+      # Mamad stays a placeholder (its consider toggle defaults off) until that unit pairs.
 
     - name: "Living Air Bad"
       unique_id: living_air_bad
