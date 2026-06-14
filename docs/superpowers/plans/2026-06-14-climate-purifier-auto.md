@@ -1,0 +1,881 @@
+# Climate Purifier-Auto (#1A) Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace the Xiaomi app's daily purifier schedule with an air-quality-driven, time-aware, multi-sensor HA automation across all three purifiers, with a global open-window gate.
+
+**Architecture:** Pure Home Assistant YAML. Input helpers (`input_boolean`, `input_datetime`) hold the kill switch, per-window include toggles, and per-area night windows. A template package (`config/template/purifier_auto.yaml`) derives per-area `air_bad` / `air_very_bad` / `is_night` / `should_purify` binary sensors plus one global `any_window_open`. Three automations (`config/automations.yaml`) act on those derived signals to drive each purifier. No new integrations, no Python.
+
+**Tech Stack:** Home Assistant template integration (`!include_dir_merge_list template/`), input helpers, automations with `choose:`; validation via `make lint` (yamllint), `python scripts/gen_automations_toc.py --check`, and `make check` (HA `check_config` on blacky), plus live Dev Tools tests on blacky's real devices.
+
+---
+
+## Conventions for this plan
+
+**No pytest here.** This is declarative HA config. Each coding task's gate is:
+1. `make lint` — yamllint over `config/` (the pre-commit hook runs the same).
+2. For automation tasks: `python scripts/gen_automations_toc.py --check` — every `alias` must carry a `# meta:` with at least `mode=…`, and names must be unique.
+3. Commit (the pre-commit hook re-runs lint + `--check` + regenerates `docs/automations.md`).
+
+`make check` (full HA `check_config`) and **live device tests** need the real HA instance, so they run in the **go-live phase (Task 10)** after the branch is on blacky — mirroring the NAS / CUPS features. Do **not** block earlier tasks on them.
+
+**yamllint truthy rule** allows `true/false/on/off`, but quote HA states (`"on"`, `"off"`) for clarity.
+
+**Style:** match `config/template/fans.yaml` — modern HA keys (`triggers:` / `conditions:` / `actions:`, each service call as `- action: <domain>.<service>` with `target:` + `data:`).
+
+### Verified entity ids (from blacky registry; do not paraphrase)
+
+| Purpose | Entity id |
+|---|---|
+| Living Pro (fan/power/preset) | `fan.zhimi_sg_974057338_vb4_s_2_air_purifier` |
+| Living Pro favorite speed (number) | `number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2` |
+| Living Qingping PM2.5 / PM10 | `sensor.airmonitor2_pm25` / `sensor.airmonitor2_pm10` |
+| Living Pro internal PM2.5 / PM10 | `sensor.zhimi_sg_974057338_vb4_pm2_5_density_p_3_4` / `sensor.zhimi_sg_974057338_vb4_pm10_density_p_3_8` |
+| Master Compact power (switch) | `switch.xiaomi_sg_828358399_cpa4_on_p_2_1` |
+| Master Compact mode (select) | `select.xiaomi_sg_828358399_cpa4_mode_p_2_4` |
+| Master Compact favorite level (number) | `number.xiaomi_sg_828358399_cpa4_favorite_level_p_9_11` |
+| Master Qingping PM2.5 / PM10 | `sensor.airmonitorlitemaster_pm25` / `sensor.airmonitorlitemaster_pm10` |
+| Master Compact internal PM2.5 (no PM10) | `sensor.xiaomi_sg_828358399_cpa4_pm2_5_density_p_3_4` |
+| Mamad Qingping PM2.5 / PM10 (live) | `sensor.mamadairmonitor_pm25` / `sensor.mamadairmonitor_pm10` |
+
+### Placeholder entity ids (hardware not yet paired — resolved in Task 10)
+
+These are referenced now so templates/automations are complete; HA renders an unknown entity as `unknown`/`unavailable`, which the templates treat as 0 / off, so they are safe until the real ids replace them.
+
+| Purpose | Placeholder | Resolve when |
+|---|---|---|
+| Living balcony window contact | `binary_sensor.living_balcony_window_contact` | window paired |
+| Office window contact | `binary_sensor.office_window_contact` | window paired |
+| Mamad window contact | `binary_sensor.mamad_window_contact` | window paired (toggle stays off) |
+| Mamad Compact power (switch) | `switch.mamad_compact_on` | 2nd Compact online (~next day) |
+| Mamad Compact mode (select) | `select.mamad_compact_mode` | 2nd Compact online |
+| Mamad Compact favorite level (number) | `number.mamad_compact_favorite_level` | 2nd Compact online |
+| Mamad Compact internal PM2.5 | `sensor.mamad_compact_pm2_5_density` | 2nd Compact online |
+
+---
+
+## File structure
+
+- `config/input_boolean.yaml` (new) — `purifier_auto_enable` + 3 `window_consider_*` toggles.
+- `config/input_datetime.yaml` (new) — 3 per-area night-window pairs (6 entities).
+- `config/template/purifier_auto.yaml` (new) — global `any_window_open`; per-area `air_bad`, `air_very_bad` (master/mamad), `is_night`, `should_purify`.
+- `config/configuration.yaml` (modify) — add the two helper includes.
+- `config/automations.yaml` (modify) — replace `[]` with `climate-purifier-living`, `climate-purifier-master`, `climate-purifier-mamad`.
+- `docs/automations.md` — regenerated by the pre-commit hook (never hand-edited).
+- `docs/state-of-world.md` (modify) — mark backlog #1 part A done.
+
+---
+
+## Task 1: Input booleans (kill switch + window include toggles)
+
+**Files:**
+- Create: `config/input_boolean.yaml`
+- Modify: `config/configuration.yaml`
+
+- [ ] **Step 1: Create `config/input_boolean.yaml`**
+
+```yaml
+purifier_auto_enable:
+  name: Purifier Auto Enable
+  icon: mdi:air-purifier
+  initial: true
+
+window_consider_living_balcony:
+  name: Consider Living Balcony Window
+  icon: mdi:window-open-variant
+  initial: true
+
+window_consider_office:
+  name: Consider Office Window
+  icon: mdi:window-open-variant
+  initial: true
+
+window_consider_mamad:
+  name: Consider Mamad Window
+  icon: mdi:window-open-variant
+  initial: false
+```
+
+- [ ] **Step 2: Wire the include in `config/configuration.yaml`**
+
+Add directly under the existing `scene: !include scenes.yaml` line:
+
+```yaml
+input_boolean: !include input_boolean.yaml
+```
+
+- [ ] **Step 3: Lint**
+
+Run: `make lint`
+Expected: no errors (exit 0).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add config/input_boolean.yaml config/configuration.yaml
+git commit -m "feat(purifier): add enable kill switch + window include toggles"
+```
+
+---
+
+## Task 2: Input datetimes (per-area night windows)
+
+**Files:**
+- Create: `config/input_datetime.yaml`
+- Modify: `config/configuration.yaml`
+
+- [ ] **Step 1: Create `config/input_datetime.yaml`**
+
+```yaml
+living_night_start:
+  name: Living Night Start
+  has_date: false
+  has_time: true
+  initial: "22:00:00"
+
+living_night_end:
+  name: Living Night End
+  has_date: false
+  has_time: true
+  initial: "07:00:00"
+
+master_night_start:
+  name: Master Night Start
+  has_date: false
+  has_time: true
+  initial: "22:00:00"
+
+master_night_end:
+  name: Master Night End
+  has_date: false
+  has_time: true
+  initial: "07:00:00"
+
+mamad_night_start:
+  name: Mamad Night Start
+  has_date: false
+  has_time: true
+  initial: "18:00:00"
+
+mamad_night_end:
+  name: Mamad Night End
+  has_date: false
+  has_time: true
+  initial: "07:00:00"
+```
+
+- [ ] **Step 2: Wire the include in `config/configuration.yaml`**
+
+Add directly under the `input_boolean: !include input_boolean.yaml` line from Task 1:
+
+```yaml
+input_datetime: !include input_datetime.yaml
+```
+
+- [ ] **Step 3: Lint**
+
+Run: `make lint`
+Expected: no errors (exit 0).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add config/input_datetime.yaml config/configuration.yaml
+git commit -m "feat(purifier): add per-area night-window helpers"
+```
+
+---
+
+## Task 3: Template scaffold + global `any_window_open`
+
+**Files:**
+- Create: `config/template/purifier_auto.yaml`
+
+The template integration is already wired (`template: !include_dir_merge_list template/`), so a new list-style file in `template/` is auto-merged — same pattern as `fans.yaml`.
+
+- [ ] **Step 1: Create `config/template/purifier_auto.yaml` with the window gate**
+
+```yaml
+# Air-quality-driven purifier control — derived signals.
+# Consumed by the climate-purifier-* automations. See
+# docs/superpowers/specs/2026-06-14-climate-purifier-auto-design.md
+
+- binary_sensor:
+    - name: "Any Window Open"
+      unique_id: any_window_open
+      device_class: window
+      state: >
+        {{
+          (is_state('input_boolean.window_consider_living_balcony', 'on')
+             and is_state('binary_sensor.living_balcony_window_contact', 'on'))
+          or (is_state('input_boolean.window_consider_office', 'on')
+             and is_state('binary_sensor.office_window_contact', 'on'))
+          or (is_state('input_boolean.window_consider_mamad', 'on')
+             and is_state('binary_sensor.mamad_window_contact', 'on'))
+        }}
+```
+
+- [ ] **Step 2: Lint**
+
+Run: `make lint`
+Expected: no errors (exit 0).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add config/template/purifier_auto.yaml
+git commit -m "feat(purifier): add global any_window_open template sensor"
+```
+
+---
+
+## Task 4: Per-area `air_bad` (hysteretic)
+
+**Files:**
+- Modify: `config/template/purifier_auto.yaml`
+
+Hysteresis (spec): `air_bad` turns **on** when PM2.5 ≥ 25 or PM10 ≥ 50 on any sensor; stays on until **all** sensors fall to ≤ 12 (PM2.5) and ≤ 30 (PM10). Self-reference via `this.state`. `float(0)` makes an unavailable sensor read 0 — harmless under `max`.
+
+- [ ] **Step 1: Append the three `air_bad` sensors under the existing `- binary_sensor:` list item in `config/template/purifier_auto.yaml`**
+
+Add these as siblings of `Any Window Open` (same `- name:` indentation, under the same `- binary_sensor:` block):
+
+```yaml
+    - name: "Living Air Bad"
+      unique_id: living_air_bad
+      device_class: problem
+      state: >
+        {% set p25 = [states('sensor.airmonitor2_pm25')|float(0),
+                      states('sensor.zhimi_sg_974057338_vb4_pm2_5_density_p_3_4')|float(0)] | max %}
+        {% set p10 = [states('sensor.airmonitor2_pm10')|float(0),
+                      states('sensor.zhimi_sg_974057338_vb4_pm10_density_p_3_8')|float(0)] | max %}
+        {% if this.state == 'on' %}
+          {{ p25 > 12 or p10 > 30 }}
+        {% else %}
+          {{ p25 >= 25 or p10 >= 50 }}
+        {% endif %}
+
+    - name: "Master Air Bad"
+      unique_id: master_air_bad
+      device_class: problem
+      state: >
+        {% set p25 = [states('sensor.airmonitorlitemaster_pm25')|float(0),
+                      states('sensor.xiaomi_sg_828358399_cpa4_pm2_5_density_p_3_4')|float(0)] | max %}
+        {% set p10 = states('sensor.airmonitorlitemaster_pm10')|float(0) %}
+        {% if this.state == 'on' %}
+          {{ p25 > 12 or p10 > 30 }}
+        {% else %}
+          {{ p25 >= 25 or p10 >= 50 }}
+        {% endif %}
+
+    - name: "Mamad Air Bad"
+      unique_id: mamad_air_bad
+      device_class: problem
+      state: >
+        {% set p25 = [states('sensor.mamadairmonitor_pm25')|float(0),
+                      states('sensor.mamad_compact_pm2_5_density')|float(0)] | max %}
+        {% set p10 = states('sensor.mamadairmonitor_pm10')|float(0) %}
+        {% if this.state == 'on' %}
+          {{ p25 > 12 or p10 > 30 }}
+        {% else %}
+          {{ p25 >= 25 or p10 >= 50 }}
+        {% endif %}
+```
+
+- [ ] **Step 2: Lint**
+
+Run: `make lint`
+Expected: no errors (exit 0).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add config/template/purifier_auto.yaml
+git commit -m "feat(purifier): add per-area hysteretic air_bad sensors"
+```
+
+---
+
+## Task 5: `air_very_bad`, `is_night`, `should_purify`
+
+**Files:**
+- Modify: `config/template/purifier_auto.yaml`
+
+`air_very_bad` (master/mamad only; Living uses only `air_bad`): PM2.5 ≥ 50 on **both** internal and Qingping, **or** Qingping PM10 ≥ 100. `is_night`: now inside the area's own window, with midnight wrap-around (for time-only `input_datetime`, the `timestamp` attribute is seconds since local midnight). `should_purify`: `air_bad and purifier_auto_enable and not any_window_open`.
+
+- [ ] **Step 1: Append the remaining sensors under the same `- binary_sensor:` block in `config/template/purifier_auto.yaml`**
+
+```yaml
+    - name: "Master Air Very Bad"
+      unique_id: master_air_very_bad
+      device_class: problem
+      state: >
+        {% set q = states('sensor.airmonitorlitemaster_pm25')|float(0) %}
+        {% set i = states('sensor.xiaomi_sg_828358399_cpa4_pm2_5_density_p_3_4')|float(0) %}
+        {% set p10 = states('sensor.airmonitorlitemaster_pm10')|float(0) %}
+        {{ (q >= 50 and i >= 50) or p10 >= 100 }}
+
+    - name: "Mamad Air Very Bad"
+      unique_id: mamad_air_very_bad
+      device_class: problem
+      state: >
+        {% set q = states('sensor.mamadairmonitor_pm25')|float(0) %}
+        {% set i = states('sensor.mamad_compact_pm2_5_density')|float(0) %}
+        {% set p10 = states('sensor.mamadairmonitor_pm10')|float(0) %}
+        {{ (q >= 50 and i >= 50) or p10 >= 100 }}
+
+    - name: "Living Is Night"
+      unique_id: living_is_night
+      state: >
+        {% set now_s = now().hour * 3600 + now().minute * 60 + now().second %}
+        {% set start = state_attr('input_datetime.living_night_start', 'timestamp')|int(0) %}
+        {% set end = state_attr('input_datetime.living_night_end', 'timestamp')|int(0) %}
+        {% if start <= end %}
+          {{ start <= now_s < end }}
+        {% else %}
+          {{ now_s >= start or now_s < end }}
+        {% endif %}
+
+    - name: "Master Is Night"
+      unique_id: master_is_night
+      state: >
+        {% set now_s = now().hour * 3600 + now().minute * 60 + now().second %}
+        {% set start = state_attr('input_datetime.master_night_start', 'timestamp')|int(0) %}
+        {% set end = state_attr('input_datetime.master_night_end', 'timestamp')|int(0) %}
+        {% if start <= end %}
+          {{ start <= now_s < end }}
+        {% else %}
+          {{ now_s >= start or now_s < end }}
+        {% endif %}
+
+    - name: "Mamad Is Night"
+      unique_id: mamad_is_night
+      state: >
+        {% set now_s = now().hour * 3600 + now().minute * 60 + now().second %}
+        {% set start = state_attr('input_datetime.mamad_night_start', 'timestamp')|int(0) %}
+        {% set end = state_attr('input_datetime.mamad_night_end', 'timestamp')|int(0) %}
+        {% if start <= end %}
+          {{ start <= now_s < end }}
+        {% else %}
+          {{ now_s >= start or now_s < end }}
+        {% endif %}
+
+    - name: "Living Should Purify"
+      unique_id: living_should_purify
+      state: >
+        {{ is_state('binary_sensor.living_air_bad', 'on')
+           and is_state('input_boolean.purifier_auto_enable', 'on')
+           and is_state('binary_sensor.any_window_open', 'off') }}
+
+    - name: "Master Should Purify"
+      unique_id: master_should_purify
+      state: >
+        {{ is_state('binary_sensor.master_air_bad', 'on')
+           and is_state('input_boolean.purifier_auto_enable', 'on')
+           and is_state('binary_sensor.any_window_open', 'off') }}
+
+    - name: "Mamad Should Purify"
+      unique_id: mamad_should_purify
+      state: >
+        {{ is_state('binary_sensor.mamad_air_bad', 'on')
+           and is_state('input_boolean.purifier_auto_enable', 'on')
+           and is_state('binary_sensor.any_window_open', 'off') }}
+```
+
+- [ ] **Step 2: Lint**
+
+Run: `make lint`
+Expected: no errors (exit 0).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add config/template/purifier_auto.yaml
+git commit -m "feat(purifier): add air_very_bad, is_night, should_purify sensors"
+```
+
+---
+
+## Task 6: Living Pro automation
+
+**Files:**
+- Modify: `config/automations.yaml` (currently `[]`)
+
+Behavior (spec matrix): feature-off → no-op; any window open → off; **day** → `should_purify` ? Auto : off; **night** → either bedroom `air_bad` → high Manual pre-clear, else own `air_bad` → gentle Auto, else off. `mode: restart` so the latest state wins without thrashing.
+
+- [ ] **Step 1: Replace the contents of `config/automations.yaml` with the Living automation**
+
+Replace the single line `[]` with:
+
+```yaml
+# meta: intent="auto-run living air purifier on indoor PM, ramp at night to protect bedrooms, stand down when any window open"; waf=med; mode=auto
+- alias: climate-purifier-living
+  id: climate_purifier_living
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id:
+        - binary_sensor.living_should_purify
+        - binary_sensor.living_is_night
+        - binary_sensor.living_air_bad
+        - binary_sensor.master_air_bad
+        - binary_sensor.mamad_air_bad
+        - binary_sensor.any_window_open
+        - input_boolean.purifier_auto_enable
+  actions:
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.purifier_auto_enable
+              state: "off"
+          sequence: []
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.any_window_open
+              state: "on"
+          sequence:
+            - action: fan.turn_off
+              target:
+                entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.living_is_night
+              state: "on"
+          sequence:
+            - choose:
+                - conditions:
+                    - condition: or
+                      conditions:
+                        - condition: state
+                          entity_id: binary_sensor.master_air_bad
+                          state: "on"
+                        - condition: state
+                          entity_id: binary_sensor.mamad_air_bad
+                          state: "on"
+                  sequence:
+                    - action: fan.turn_on
+                      target:
+                        entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                    # let the device come up so its favorite_speed number (and its max attr)
+                    # is available before we read it — avoids the unavailable->fallback race
+                    - delay: "00:00:02"
+                    - action: fan.set_preset_mode
+                      target:
+                        entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                      data:
+                        preset_mode: "Manual"
+                    - action: number.set_value
+                      target:
+                        entity_id: number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2
+                      data:
+                        # high Manual = the number's own max. Fallback 100 is a last resort if
+                        # max is still unreadable; Task 10 confirms the real max scale and
+                        # replaces 100 with it if the entity is RPM-scaled (not 0-100).
+                        value: "{{ state_attr('number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2', 'max')|int(100) }}"
+                - conditions:
+                    - condition: state
+                      entity_id: binary_sensor.living_air_bad
+                      state: "on"
+                  sequence:
+                    - action: fan.turn_on
+                      target:
+                        entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                    - action: fan.set_preset_mode
+                      target:
+                        entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                      data:
+                        preset_mode: "Auto"
+              default:
+                - action: fan.turn_off
+                  target:
+                    entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+      default:
+        - choose:
+            - conditions:
+                - condition: state
+                  entity_id: binary_sensor.living_should_purify
+                  state: "on"
+              sequence:
+                - action: fan.turn_on
+                  target:
+                    entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                - action: fan.set_preset_mode
+                  target:
+                    entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+                  data:
+                    preset_mode: "Auto"
+          default:
+            - action: fan.turn_off
+              target:
+                entity_id: fan.zhimi_sg_974057338_vb4_s_2_air_purifier
+```
+
+- [ ] **Step 2: Lint**
+
+Run: `make lint`
+Expected: no errors (exit 0).
+
+- [ ] **Step 3: Validate meta + uniqueness**
+
+Run: `python scripts/gen_automations_toc.py --check`
+Expected: exit 0 (no "missing meta" / "duplicate name").
+
+- [ ] **Step 4: Regenerate ToC and confirm the row appears**
+
+Run: `make toc`
+Expected: `docs/automations.md` AUTOGEN table now lists `climate-purifier-living | HA-automation | automations.yaml | … | med | auto`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add config/automations.yaml docs/automations.md
+git commit -m "feat(purifier): add climate-purifier-living automation"
+```
+
+---
+
+## Task 7: Master Compact automation
+
+**Files:**
+- Modify: `config/automations.yaml`
+
+Behavior: feature-off → no-op; any window open → off; **day** → `should_purify` ? (switch on + mode Auto) : switch off; **night** → switch on + **Sleep** baseline, escalate to **Auto** only on `air_very_bad`.
+
+- [ ] **Step 1: Append the Master automation to `config/automations.yaml`** (after the Living block, as the next list item)
+
+```yaml
+# meta: intent="auto-run master-bedroom purifier; sleep baseline at night, escalate only when air is very bad"; waf=med; mode=auto
+- alias: climate-purifier-master
+  id: climate_purifier_master
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id:
+        - binary_sensor.master_should_purify
+        - binary_sensor.master_is_night
+        - binary_sensor.master_air_very_bad
+        - binary_sensor.any_window_open
+        - input_boolean.purifier_auto_enable
+  actions:
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.purifier_auto_enable
+              state: "off"
+          sequence: []
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.any_window_open
+              state: "on"
+          sequence:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.xiaomi_sg_828358399_cpa4_on_p_2_1
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.master_is_night
+              state: "on"
+          sequence:
+            - action: switch.turn_on
+              target:
+                entity_id: switch.xiaomi_sg_828358399_cpa4_on_p_2_1
+            - choose:
+                - conditions:
+                    - condition: state
+                      entity_id: binary_sensor.master_air_very_bad
+                      state: "on"
+                  sequence:
+                    - action: select.select_option
+                      target:
+                        entity_id: select.xiaomi_sg_828358399_cpa4_mode_p_2_4
+                      data:
+                        option: "Auto"
+              default:
+                - action: select.select_option
+                  target:
+                    entity_id: select.xiaomi_sg_828358399_cpa4_mode_p_2_4
+                  data:
+                    option: "Sleep"
+      default:
+        - choose:
+            - conditions:
+                - condition: state
+                  entity_id: binary_sensor.master_should_purify
+                  state: "on"
+              sequence:
+                - action: switch.turn_on
+                  target:
+                    entity_id: switch.xiaomi_sg_828358399_cpa4_on_p_2_1
+                - action: select.select_option
+                  target:
+                    entity_id: select.xiaomi_sg_828358399_cpa4_mode_p_2_4
+                  data:
+                    option: "Auto"
+          default:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.xiaomi_sg_828358399_cpa4_on_p_2_1
+```
+
+- [ ] **Step 2: Lint**
+
+Run: `make lint`
+Expected: no errors (exit 0).
+
+- [ ] **Step 3: Validate meta + uniqueness**
+
+Run: `python scripts/gen_automations_toc.py --check`
+Expected: exit 0.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add config/automations.yaml docs/automations.md
+git commit -m "feat(purifier): add climate-purifier-master automation"
+```
+
+---
+
+## Task 8: Mamad Compact automation (placeholder entity ids)
+
+**Files:**
+- Modify: `config/automations.yaml`
+
+Identical behavior to Master, on the `mamad_*` night window, against the Mamad Compact placeholder ids (resolved in Task 10 when the unit is online). The automation is committed now so the structure is reviewed and `check_config` validates it; it stays inert against real hardware until ids are resolved.
+
+- [ ] **Step 1: Append the Mamad automation to `config/automations.yaml`** (after the Master block)
+
+```yaml
+# meta: intent="auto-run child-room purifier; sleep baseline on early night window, escalate only when air is very bad"; waf=med; mode=auto
+- alias: climate-purifier-mamad
+  id: climate_purifier_mamad
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id:
+        - binary_sensor.mamad_should_purify
+        - binary_sensor.mamad_is_night
+        - binary_sensor.mamad_air_very_bad
+        - binary_sensor.any_window_open
+        - input_boolean.purifier_auto_enable
+  actions:
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_boolean.purifier_auto_enable
+              state: "off"
+          sequence: []
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.any_window_open
+              state: "on"
+          sequence:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.mamad_compact_on
+        - conditions:
+            - condition: state
+              entity_id: binary_sensor.mamad_is_night
+              state: "on"
+          sequence:
+            - action: switch.turn_on
+              target:
+                entity_id: switch.mamad_compact_on
+            - choose:
+                - conditions:
+                    - condition: state
+                      entity_id: binary_sensor.mamad_air_very_bad
+                      state: "on"
+                  sequence:
+                    - action: select.select_option
+                      target:
+                        entity_id: select.mamad_compact_mode
+                      data:
+                        option: "Auto"
+              default:
+                - action: select.select_option
+                  target:
+                    entity_id: select.mamad_compact_mode
+                  data:
+                    option: "Sleep"
+      default:
+        - choose:
+            - conditions:
+                - condition: state
+                  entity_id: binary_sensor.mamad_should_purify
+                  state: "on"
+              sequence:
+                - action: switch.turn_on
+                  target:
+                    entity_id: switch.mamad_compact_on
+                - action: select.select_option
+                  target:
+                    entity_id: select.mamad_compact_mode
+                  data:
+                    option: "Auto"
+          default:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.mamad_compact_on
+```
+
+- [ ] **Step 2: Lint**
+
+Run: `make lint`
+Expected: no errors (exit 0).
+
+- [ ] **Step 3: Validate meta + uniqueness**
+
+Run: `python scripts/gen_automations_toc.py --check`
+Expected: exit 0; all three `climate-purifier-*` names unique.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add config/automations.yaml docs/automations.md
+git commit -m "feat(purifier): add climate-purifier-mamad automation (placeholder ids)"
+```
+
+---
+
+## Task 9: Update state-of-world doc
+
+**Files:**
+- Modify: `docs/state-of-world.md`
+
+- [ ] **Step 1: Mark backlog #1 part A done in `docs/state-of-world.md`**
+
+Replace the line:
+
+```markdown
+1. **Climate flagship** — air-quality-driven air-purifier control, replacing the current daily schedule; add a window-vs-AC call-to-action based on outdoor air quality.
+```
+
+with:
+
+```markdown
+1. **Climate flagship** — *part A done:* air-quality-driven purifier control across all three
+   units (Living Pro + Master & Mamad Compacts), per-area night windows, global open-window
+   gate with per-sensor include toggles, kill switch. HA-YAML — helpers + `template/purifier_auto.yaml`
+   + 3 `climate-purifier-*` automations. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-14-climate-purifier-auto*`.
+   *Part B (open):* window-vs-AC call-to-action on outdoor AQ + CO2/ventilation.
+```
+
+- [ ] **Step 2: Lint (docs only — no YAML change, but keep the gate uniform)**
+
+Run: `make toc`
+Expected: AUTOGEN table unchanged (3 automations), exit 0.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add docs/state-of-world.md
+git commit -m "docs: mark climate flagship part A (purifier-auto) done"
+```
+
+---
+
+## Task 10: Go-live on blacky (hardware pairing + live validation)
+
+> **Controller/user task — not a coding subagent.** Needs the real HA instance and physical devices. Runs after the branch is merged + pushed and blacky has pulled (follow the usual blacky-align discipline: `git pull --ff-only` only after verifying no locally-modified tracked files and no plugin-dir deletion).
+
+- [ ] **Step 1: HA config check on blacky**
+
+Run: `make check`
+Expected: `Configuration valid!` (templates + automations parse; unknown placeholder entities do **not** fail `check_config`).
+
+- [ ] **Step 2: Pair the window contacts + resolve their entity ids**
+
+Pair the **living balcony** and **office** Zigbee contact sensors. Find the real `binary_sensor` ids:
+
+```bash
+ssh blacky "python3 - <<'PY'
+import json
+reg = json.load(open('/config/.storage/core.entity_registry'))
+for e in reg['data']['entities']:
+    if e['entity_id'].startswith('binary_sensor.') and ('window' in e['entity_id'] or 'contact' in e['entity_id'] or 'door' in e['entity_id']):
+        print(e['entity_id'], '->', e.get('original_name') or e.get('name'))
+PY"
+```
+
+Replace the placeholders in `config/template/purifier_auto.yaml`:
+`binary_sensor.living_balcony_window_contact` → the balcony id; `binary_sensor.office_window_contact` → the office id. (Leave `binary_sensor.mamad_window_contact` as-is until that sensor is paired; its include toggle defaults off, so `any_window_open` ignores it.)
+
+**Fail-open on sensor loss (apply to the REAL ids only):** a paired window sensor that goes `unavailable` (dead battery, dropped from mesh) must be treated as **open**, so the purifier stands down rather than running against a possibly-open window. For each resolved real sensor, change its `any_window_open` clause from a single `is_state(...,'on')` to:
+```jinja
+(is_state('input_boolean.window_consider_office', 'on')
+   and not is_state('binary_sensor.<real_office_id>', 'off'))
+```
+i.e. "considered AND not known-closed" — `on` **or** `unavailable`/`unknown` both count as open. Do **not** apply this to the still-placeholder Mamad clause (it would force `any_window_open` permanently true once its toggle is on). Then `make lint`, commit, push, blacky pull.
+
+- [ ] **Step 3: Resolve the Mamad Compact ids when the 2nd unit is online**
+
+```bash
+ssh blacky "python3 - <<'PY'
+import json
+reg = json.load(open('/config/.storage/core.entity_registry'))
+for e in reg['data']['entities']:
+    eid = e['entity_id']
+    if 'cpa4' in eid and '828358399' not in eid:   # 2nd Compact = different device id
+        print(eid)
+PY"
+```
+
+Replace the Mamad placeholders across `config/automations.yaml` + `config/template/purifier_auto.yaml`:
+`switch.mamad_compact_on`, `select.mamad_compact_mode`, `number.mamad_compact_favorite_level`, `sensor.mamad_compact_pm2_5_density` → the resolved ids. Then `make lint`, `make check`, commit, push, blacky pull.
+
+- [ ] **Step 4: Control verification (spec gate — exercise every control before trusting automations)**
+
+In HA Dev Tools → Actions, fire each and physically confirm:
+- `fan.turn_on` / `fan.turn_off` / `fan.set_preset_mode` (Auto, Sleep, Manual) on the Pro; `number.set_value` on its favorite speed.
+- `switch.turn_on` / `switch.turn_off`, `select.select_option` (Auto/Sleep), `number.set_value` on each Compact.
+- Open/close each paired window contact → confirm the `binary_sensor` flips.
+- **Confirm the Pro favorite-speed scale:** in Dev Tools → Template render
+  `{{ state_attr('number.zhimi_sg_974057338_vb4_favorite_speed_p_9_2', 'max') }}`. If it is **not** ~100
+  (i.e. the number is RPM-scaled, e.g. max ≈ 2400), replace the `|int(100)` fallback in the Living
+  bedroom-protect branch of `config/automations.yaml` with that real max, then `make lint` + commit.
+  Also verify: with the Pro off, fire the bedroom-protect path and confirm the Pro ramps to **max**
+  speed (not the fallback) — the 2 s delay should let the real `max` read succeed.
+
+- [ ] **Step 5: Live behavior tests (Dev Tools → States/Template + Traces)**
+
+1. **Kill switch:** `input_boolean.purifier_auto_enable` off → trigger any source → automation trace shows the no-op branch; purifiers untouched. Turn back on.
+2. **Day on/off:** lower an area's threshold via a Dev Tools template render to force `air_bad` (or temporarily edit the ON constant) → Pro turns on **Auto** (day); Compact switch on + **Auto**. Clear → off.
+3. **Night baseline + escalation:** set an area's `input_datetime` window to "now" → Compact switch on + **Sleep**; drive that bedroom to `air_very_bad` → escalates to **Auto**, recovers to **Sleep**. Repeat with the `mamad_*` window.
+4. **Pro coordination:** at night, force a bedroom `air_bad` → Pro goes **Manual** at max favorite speed; force only Living `air_bad` → Pro gentle **Auto**; clear → off.
+5. **Global window gate:** with multiple areas `air_bad`, open the balcony contact → `any_window_open` on → **every** purifier off; close → resume. Flip `window_consider_office` off, open the office window → ignored (purifiers stay on); flip on → it gates again.
+6. **Idempotency:** re-fire a trigger with unchanged state → `mode: restart` re-evaluates without thrashing the devices.
+
+- [ ] **Step 6: Confirm the ToC + close out**
+
+Run: `make toc && git status`
+Expected: 3 `climate-purifier-*` rows present; working tree clean.
+
+---
+
+## Self-Review
+
+**1. Spec coverage:**
+- Engine = HA YAML + template/helpers → Tasks 1–8. ✓
+- All three purifiers (Pro fan power, Compact switch power) → Tasks 6/7/8 + entity table; per-model power explicit. ✓
+- PM2.5 + PM10 fused (Qingping + internal), hysteresis via `this.state` → Task 4. ✓
+- Thresholds 25/12/50 (PM2.5), 50/30/100 (PM10), VERY-HIGH = 2× ON → Tasks 4/5. ✓
+- 3 independent per-area night windows → Task 2 + `is_night` Task 5. ✓
+- Global `any_window_open` + per-sensor include toggles, Mamad default off → Tasks 1/3. ✓
+- `should_purify = air_bad and enable and not any_window_open` → Task 5. ✓
+- Day/night behavior matrix incl. Pro bedroom-protect coordination → Tasks 6/7/8. ✓
+- Kill switch no-op branch → all three automations. ✓
+- meta annotations + unique aliases + ToC → Tasks 6–8 + hook. ✓
+- Control-verification gate + live validation → Task 10. ✓
+- Files list (input_boolean, input_datetime, template, configuration, automations, state-of-world) → all covered. ✓
+- Out of scope (window-vs-AC CTA, CO2, AC, presence, Node-RED) → not implemented. ✓
+
+**2. Placeholder scan:** Hardware-dependent entity ids are intentional placeholders with an explicit resolve step (Task 10) — not plan-failure TODOs. No "add error handling"-style hand-waving. All code blocks are complete.
+
+**3. Type/name consistency:** Sensor unique_ids (`*_air_bad`, `*_air_very_bad`, `*_is_night`, `*_should_purify`, `any_window_open`) referenced consistently across Tasks 4/5 and automations 6/7/8. Helper ids (`purifier_auto_enable`, `window_consider_*`, `*_night_start/_end`) match between Tasks 1/2 and template Task 5. Automation aliases unique (`climate-purifier-living/master/mamad`).
+
+---
+
+## Execution Handoff
+
+(Filled by the controller after saving — see skill.)
