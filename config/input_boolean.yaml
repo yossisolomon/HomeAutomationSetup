@@ -1,7 +1,10 @@
+# No `initial:` — the kill switch restores its last state across restarts (a restart
+# shouldn't silently re-arm automation you turned off). On first-ever load it comes up
+# OFF, so bring-up is safe: helpers/templates/automations all load inert until you flip
+# this on in the UI once controls are verified. Flip on = activate; it then persists.
 purifier_auto_enable:
   name: Purifier Auto Enable
   icon: mdi:air-purifier
-  initial: true
 
 window_consider_living_balcony:
   name: Consider Living Balcony Window
