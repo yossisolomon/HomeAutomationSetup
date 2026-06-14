@@ -127,6 +127,53 @@ git config core.hooksPath scripts/git-hooks
   automation has a `# meta:` annotation with a unique name, normalizes any staged
   Node-RED flows, and regenerates the ToC.
 
+### CI + branch protection
+
+`main` is protected: every change lands through a pull request that must pass CI.
+`.github/workflows/ci.yml` runs four jobs in parallel on each PR (and on every push to
+the PR branch) — `lint`, `toc`, `pytest`, `normalizer` — reusing the same `make`/script
+commands as the local hook, so CI and local agree. Actions are free (public repo).
+
+Feature flow:
+```bash
+git checkout -b feat/<x>        # branch off main
+# ...work; the local pre-commit hook gives fast feedback...
+git push -u origin feat/<x>     # opens/updates the PR; CI runs the four jobs
+gh pr create                    # the merge button stays disabled until all four are green
+# merge (squash) only when green AND you're satisfied — green != auto-merge
+```
+
+Direct pushes to `main` are rejected; merges are squash-only (one clean commit per
+feature) with linear history. No approvals are required (solo repo) — the status checks
+are the gate.
+
+**Branch-protection setup** (re-runnable; apply *after* the CI workflow has landed on
+`main` so the four checks exist — see bootstrap order below):
+```bash
+# squash-only merges
+gh api -X PATCH repos/yossisolomon/HomeAutomationSetup \
+  -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false
+
+# require the four checks + a PR, enforce on admins, linear history
+gh api -X PUT repos/yossisolomon/HomeAutomationSetup/branches/main/protection \
+  --input - <<'JSON'
+{
+  "required_status_checks": {"strict": true, "contexts": ["lint", "toc", "pytest", "normalizer"]},
+  "enforce_admins": true,
+  "required_pull_request_reviews": {"required_approving_review_count": 0},
+  "restrictions": null,
+  "required_linear_history": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+```
+
+**Bootstrap order** (chicken-and-egg — a required check must exist before it can be
+required): land `ci.yml` via its own PR first (a same-repo PR runs the workflow from the
+PR branch, so the introducing PR is self-checked), squash-merge it, *then* run the
+branch-protection commands above.
+
 See `docs/automation-architecture.md` for authoring conventions.
 
 ## HACS plugins
