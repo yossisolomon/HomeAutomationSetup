@@ -30,3 +30,13 @@ command_line:
 
 # RF fan + light template entities (Broadlink 433MHz)
 template: !include_dir_merge_list template/
+
+# Prometheus /api/prometheus endpoint — exposed ONLY so Prometheus can scrape it
+# for an HA-liveness signal (up{job="homeassistant"}). The empty include_entities
+# filter exposes no entity metrics; we only care that the endpoint answers (HA up)
+# or doesn't (HA down). Scraped with a dedicated non-admin monitoring token — see
+# prometheus/config/prometheus.yml. Add entities below only if you ever want them
+# graphed.
+prometheus:
+  filter:
+    include_entities: []

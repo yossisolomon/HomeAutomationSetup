@@ -150,8 +150,11 @@ Rough priority order; each item becomes its own spec doc when actioned.
     service — HA uses no USB/BT/`devices` (the Zigbee dongle belongs to the `zigbee2mqtt`
     container; host networking doesn't need privileged); recreating the container is a brief
     HA restart.
-    🔧 **Repo edits landed** (compose `privileged` dropped + `setup.sh` chown); **one-time
-    blacky migration pending** (chown + recreate HA + supervised #11 catch-up pull). Spec/plan:
+    ✅ **DONE + verified on blacky (2026-06-15):** `privileged` dropped (HA recreated,
+    `Privileged=false`, healthy, 0 restarts), `setup.sh` chowns `config/`, real-container
+    `check_config` exit 0, unattended `git pull` as `yossi` clean. (config/ was already
+    `yossi:yossi` and #11 drift already reconciled — blacky was only 1 commit behind, so the
+    migration was just the privileged-drop recreate.) Spec/plan:
     `docs/superpowers/{specs,plans}/2026-06-15-config-ownership-privilege-hardening*`.
 11. **Reconcile blacky git drift** *(part of #10)* — live config on blacky is not fully in
     git: `zigbee2mqtt/config/configuration.yaml` is tracked but has uncommitted local edits.
@@ -201,7 +204,23 @@ Rough priority order; each item becomes its own spec doc when actioned.
 17. **CD — blacky safe auto-deploy** — poller on blacky: fetch `origin/main`, run HA
     `check_config` in the real container (where HACS integrations + `secrets.yaml` live),
     reload/rollback on result, Telegram-alert. Replaces the forgettable manual `make check`.
-    **Depends on #10** (chown `config/` off root so an unattended `git pull` works).
+    ✅ **#10 unblocked (2026-06-15).** Apply step = change-detection on the diff: graceful
+    API+token reload for `automations.yaml`/`scripts.yaml`/`scenes.yaml`/`template/**`/
+    `blueprints/**`, full `docker restart` for `configuration.yaml`/`secrets.yaml`/
+    `packages/**`/`custom_components/**`/`docker-compose.yml`/`requirements*` (mixed → restart).
+    Post-apply `:8123` healthcheck → rollback (`git reset --hard` + restart) on failure.
+    Deploy-failure alert via direct Telegram Bot API from the blacky-side script (HA-independent).
+    Uses a **dedicated admin** CD token (separate from #18's monitoring token). cron.d as `yossi`
+    every 2 min; `tests/test_cd_deploy.py` covers classification + rollback.
+18. **HA-liveness Grafana alert** *(native Prometheus scrape — Option 2)* — HA's `prometheus:`
+    integration is enabled with an empty `include_entities` filter (endpoint up, ~no entity
+    series); Prometheus scrapes `/api/prometheus` via `host.docker.internal:8123` with a
+    **dedicated non-admin monitoring token** (gitignored `prometheus/secrets/`, mounted ro;
+    NOT the CD token), giving `up{job="homeassistant"}`. Grafana rule `blacky_ha_down`
+    (`up == 0` for 2m, critical) → existing `blacky-notify` Telegram contact point. The
+    independent "HA is down" signal, distinct from #17's deploy-failure alerts; tests the
+    API+auth layer (so a broken monitoring token surfaces as an alert). Token-privilege split
+    respects HA's per-user RBAC.
 
 ## 8. Decision Log
 

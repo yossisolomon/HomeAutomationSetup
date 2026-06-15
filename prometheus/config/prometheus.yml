@@ -20,3 +20,19 @@ scrape_configs:
   - job_name: "cadvisor"
     static_configs:
       - targets: ["cadvisor:8080"]
+
+  # ─── Home Assistant liveness ────────────────────────────────────────────────
+  # Scrapes HA's /api/prometheus only as an up/down signal (up{job="homeassistant"}
+  # → Grafana "Home Assistant Down" alert). HA is host-networked on :8123, so from
+  # this bridge container we reach it via host.docker.internal (extra_hosts in
+  # docker-compose.yml). Auth: a DEDICATED non-admin monitoring long-lived token in
+  # the gitignored credentials_file (NOT the CD token). HA filters out all entity
+  # metrics (configuration.yaml prometheus: filter), so the payload is ~empty.
+  - job_name: "homeassistant"
+    scheme: http
+    metrics_path: /api/prometheus
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/ha_monitoring_token
+    static_configs:
+      - targets: ["host.docker.internal:8123"]

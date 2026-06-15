@@ -173,9 +173,16 @@ services:
     volumes:
       - ./prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/data:/prometheus
+      # Dedicated non-admin HA monitoring token (gitignored) for the /api/prometheus
+      # scrape job. Must be readable by the prometheus container UID (65534).
+      - ./prometheus/secrets:/etc/prometheus/secrets:ro
     ports:
       - "9090:9090"
     restart: unless-stopped
+    # HA is host-networked on :8123; reach it from this bridge container via the
+    # host gateway (the "homeassistant" scrape target in prometheus.yml).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"

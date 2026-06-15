@@ -106,6 +106,44 @@ groups:
           severity: warning
         isPaused: false
 
+      # ── Home Assistant down ─────────────────────────────────────────────────
+      # up{job="homeassistant"} is Prometheus's synthetic scrape-success metric for
+      # the HA /api/prometheus job (see prometheus.yml). It is 1 when HA answers the
+      # scrape and 0 when HA is down / wedged / returns an error — a true API-readiness
+      # signal, independent of CD (which alerts on deploy failures). Routes to the
+      # existing blacky-notify Telegram contact point.
+      - uid: blacky_ha_down
+        title: "Home Assistant Down"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: 'up{job="homeassistant"}'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [1]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Home Assistant unreachable (/api/prometheus scrape failing) for 2 minutes"
+        labels:
+          severity: critical
+        isPaused: false
+
       # ── Battery ───────────────────────────────────────────────────────────────
       # Sourced from node_exporter textfile collector written by ha-battery-mqtt.sh
       - uid: blacky_battery_low

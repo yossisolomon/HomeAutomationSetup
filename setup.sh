@@ -440,6 +440,20 @@ prepare_vol "${HA_DIR}/nodered/data" "1000:1000" "777"
 # Prometheus: UID 65534 (nobody)
 prepare_vol "${HA_DIR}/prometheus/data" "65534:65534" "777"
 
+# Prometheus secrets dir holds the dedicated non-admin HA monitoring bearer token
+# used by the /api/prometheus scrape (HA-liveness alert). Gitignored — must be
+# placed by hand on each host. Readable by the prometheus container UID (65534).
+prepare_vol "${HA_DIR}/prometheus/secrets" "65534:65534" "700"
+HA_MON_TOKEN_FILE="${HA_DIR}/prometheus/secrets/ha_monitoring_token"
+if [[ -f "$HA_MON_TOKEN_FILE" ]]; then
+    chown 65534:65534 "$HA_MON_TOKEN_FILE"; chmod 600 "$HA_MON_TOKEN_FILE"
+    info "HA monitoring token present for Prometheus scrape."
+else
+    warn "Missing ${HA_MON_TOKEN_FILE} — the homeassistant Prometheus scrape (HA-down alert)"
+    warn "  will fail until you create a non-admin HA user, mint a long-lived token, and write"
+    warn "  it there (single line, no newline): printf %s '<token>' > ${HA_MON_TOKEN_FILE}"
+fi
+
 # Grafana: UID 472 (grafana user in the official image)
 prepare_vol "${HA_DIR}/grafana/data" "472:472" "777"
 
