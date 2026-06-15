@@ -443,10 +443,18 @@ prepare_vol "${HA_DIR}/prometheus/data" "65534:65534" "777"
 # Grafana: UID 472 (grafana user in the official image)
 prepare_vol "${HA_DIR}/grafana/data" "472:472" "777"
 
-# Root-owned services (HA, ESPHome, Portainer) — just ensure dirs exist
-mkdir -p "${HA_DIR}/config"
+# Root-owned services (ESPHome, Portainer) — just ensure dirs exist
 mkdir -p "${HA_DIR}/esphome/config"
 mkdir -p "${HA_DIR}/portainer/data"
+
+# Home Assistant config/ is owned by the main user, NOT root (backlog #10).
+# HA runs as root and only *reads* the git-tracked YAML (automations, scripts,
+# templates, configuration.yaml) — it never rewrites them — so it works fine with
+# yossi-owned files. The files HA *does* create as root (.storage/, *.db, *.log,
+# secrets.yaml) are gitignored, so their root ownership is moot. Owning config/ as
+# the main user is what lets the unattended CD git pull (backlog #17) succeed.
+mkdir -p "${HA_DIR}/config"
+chown -R "${MAIN_USER}:${MAIN_USER}" "${HA_DIR}/config"
 
 info "Volume directories prepared."
 
