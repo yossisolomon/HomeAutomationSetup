@@ -33,6 +33,9 @@ portainer/data/
 
 # ── Prometheus ─────────────────────────────────────────────────────────────────
 prometheus/data/
+# Dedicated non-admin HA monitoring bearer token for the /api/prometheus scrape
+# (mounted into the container at /etc/prometheus/secrets). Never commit it.
+prometheus/secrets/
 
 # ── Grafana ────────────────────────────────────────────────────────────────────
 grafana/data/
