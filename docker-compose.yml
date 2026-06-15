@@ -1,10 +1,12 @@
 services:
 
   # ─── Home Assistant ──────────────────────────────────────────────────────────
-  # privileged: true is recommended by the upstream project to allow HA access to
-  # Bluetooth adapters, USB Z-Wave/Zigbee sticks, and other hardware. If you only
-  # use network-based integrations you can remove it and add specific `devices:`
-  # entries instead.
+  # No privileged / devices: this HA has zero local-hardware integrations. Zigbee
+  # is owned by the zigbee2mqtt container (it holds the USB dongle); everything else
+  # is networked (Qingping/Xiaomi over Wi-Fi+MQTT, fans over Broadlink RF, boiler
+  # over LocalTuya). The only host access HA needs is the two read-only mounts below
+  # (/run/dbus, /sys/class/power_supply). Re-add privileged only if a future
+  # integration needs direct USB/BT access.
   homeassistant:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
@@ -15,7 +17,6 @@ services:
       - /sys/class/power_supply:/sys/class/power_supply:ro
       - /mnt/nas/ha:/config/backups
     restart: unless-stopped
-    privileged: true
     network_mode: host
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8123/ || exit 1"]
