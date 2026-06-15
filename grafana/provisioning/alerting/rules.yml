@@ -106,6 +106,43 @@ groups:
           severity: warning
         isPaused: false
 
+      # ── Home Assistant down ─────────────────────────────────────────────────
+      # ha_up gauge from the node_exporter textfile collector (host-side :8123 probe
+      # in ha-battery-metrics.sh). The probe runs on the host, not in the HA
+      # container, so ha_up reliably reports 0 when HA is down. This is the
+      # independent "HA is down" signal (CD handles deploy failures separately).
+      - uid: blacky_ha_down
+        title: "Home Assistant Down"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: 'ha_up'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [1]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Home Assistant unreachable on :8123 for 2 minutes"
+        labels:
+          severity: critical
+        isPaused: false
+
       # ── Battery ───────────────────────────────────────────────────────────────
       # Sourced from node_exporter textfile collector written by ha-battery-mqtt.sh
       - uid: blacky_battery_low

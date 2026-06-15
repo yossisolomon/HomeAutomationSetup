@@ -150,8 +150,11 @@ Rough priority order; each item becomes its own spec doc when actioned.
     service — HA uses no USB/BT/`devices` (the Zigbee dongle belongs to the `zigbee2mqtt`
     container; host networking doesn't need privileged); recreating the container is a brief
     HA restart.
-    🔧 **Repo edits landed** (compose `privileged` dropped + `setup.sh` chown); **one-time
-    blacky migration pending** (chown + recreate HA + supervised #11 catch-up pull). Spec/plan:
+    ✅ **DONE + verified on blacky (2026-06-15):** `privileged` dropped (HA recreated,
+    `Privileged=false`, healthy, 0 restarts), `setup.sh` chowns `config/`, real-container
+    `check_config` exit 0, unattended `git pull` as `yossi` clean. (config/ was already
+    `yossi:yossi` and #11 drift already reconciled — blacky was only 1 commit behind, so the
+    migration was just the privileged-drop recreate.) Spec/plan:
     `docs/superpowers/{specs,plans}/2026-06-15-config-ownership-privilege-hardening*`.
 11. **Reconcile blacky git drift** *(part of #10)* — live config on blacky is not fully in
     git: `zigbee2mqtt/config/configuration.yaml` is tracked but has uncommitted local edits.
@@ -201,7 +204,16 @@ Rough priority order; each item becomes its own spec doc when actioned.
 17. **CD — blacky safe auto-deploy** — poller on blacky: fetch `origin/main`, run HA
     `check_config` in the real container (where HACS integrations + `secrets.yaml` live),
     reload/rollback on result, Telegram-alert. Replaces the forgettable manual `make check`.
-    **Depends on #10** (chown `config/` off root so an unattended `git pull` works).
+    ✅ **#10 unblocked (2026-06-15).** Apply step = change-detection: graceful API+token
+    reload for automations/scripts/scenes/templates, full `docker restart` for
+    `configuration.yaml`/integration changes. Deploy-failure alert via direct Telegram Bot
+    API from the blacky-side script (HA-independent). Spec/plan to follow.
+18. ✅ **HA-liveness Grafana alert** *(done — `ha_up` textfile + `blacky_ha_down` rule)* — the
+    host metrics timer (`ha-battery-metrics.sh`) probes HA on :8123 and writes an `ha_up`
+    gauge to the node_exporter textfile collector; a Grafana rule (`ha_up < 1` for 2m,
+    severity critical) routes to the existing `blacky-notify` Telegram contact point. This is
+    the independent "HA is down" signal, distinct from CD's deploy-failure alerts. The probe
+    runs on the host (not in the HA container) so it reports 0 even when HA is down.
 
 ## 8. Decision Log
 

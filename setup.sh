@@ -215,8 +215,8 @@ chmod 755 "$TEXTFILE_DIR"
 
 cat > /usr/local/bin/ha-battery-metrics.sh <<'BATEOF'
 #!/usr/bin/env bash
-# ThinkPad battery metrics publisher. Runs every 60 s via systemd timer.
-# Requires: mosquitto-clients (for MQTT heartbeat)
+# Host metrics publisher (battery + HA liveness). Runs every 60 s via systemd timer.
+# Requires: mosquitto-clients (MQTT heartbeat), curl (HA liveness probe).
 
 CAPACITY=$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo "")
 STATUS=$(  cat /sys/class/power_supply/BAT0/status   2>/dev/null || echo "unknown")
@@ -241,6 +241,18 @@ if [[ -n "$CAPACITY" ]]; then
         fi
     } > "${TEXTFILE_DIR}/battery.prom"
 fi
+
+# ── 1b. Home Assistant liveness (ha_up → Grafana HA-down alert) ──────────────
+# Host-side probe of HA's web port. This runs as a host systemd timer, NOT in the
+# HA container, so it keeps writing ha_up=0 even when HA is down — which is exactly
+# when the Grafana "HA down" alert must fire. Atomic write so node_exporter never
+# reads a half-written file. Same curl check the compose healthcheck uses.
+HA_UP=$(curl -sf -o /dev/null --max-time 5 http://localhost:8123/ && echo 1 || echo 0)
+{
+    echo "# HELP ha_up Home Assistant web UI reachable on :8123 (1=up, 0=down)"
+    echo "# TYPE ha_up gauge"
+    echo "ha_up ${HA_UP}"
+} > "${TEXTFILE_DIR}/ha.prom.tmp" && mv "${TEXTFILE_DIR}/ha.prom.tmp" "${TEXTFILE_DIR}/ha.prom"
 
 # ── 2. MQTT heartbeat (broker liveness check — HA monitors this topic) ────────
 # If Mosquitto auth is enabled, add: -u <user> -P <pass>
@@ -284,7 +296,7 @@ TIMEREOF
 systemctl daemon-reload
 systemctl enable ha-battery-metrics.timer
 systemctl start  ha-battery-metrics.timer
-info "Battery metrics publisher active (textfile at ${TEXTFILE_DIR}, MQTT heartbeat to blacky/battery/heartbeat)"
+info "Host metrics publisher active (battery + ha_up textfiles at ${TEXTFILE_DIR}, MQTT heartbeat to blacky/battery/heartbeat)"
 
 # ── 3c. Battery-aware graceful shutdown ──────────────────────────────────────
 # On AC loss: 1-hour timer fires shutdown-if-on-battery.sh (brief outages cancel cleanly).
