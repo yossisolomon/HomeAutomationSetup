@@ -58,7 +58,7 @@
       device_class: problem
       state: >
         {% set p25 = [states('sensor.mamadairmonitor_pm25')|float(0),
-                      states('sensor.mamad_compact_pm2_5_density')|float(0)] | max %}
+                      states('sensor.xiaomi_sg_828351147_cpa4_pm2_5_density_p_3_4')|float(0)] | max %}
         {% set p10 = states('sensor.mamadairmonitor_pm10')|float(0) %}
         {% if this.state == 'on' %}
           {{ p25 > 12 or p10 > 30 }}
@@ -80,7 +80,7 @@
       device_class: problem
       state: >
         {% set q = states('sensor.mamadairmonitor_pm25')|float(0) %}
-        {% set i = states('sensor.mamad_compact_pm2_5_density')|float(0) %}
+        {% set i = states('sensor.xiaomi_sg_828351147_cpa4_pm2_5_density_p_3_4')|float(0) %}
         {% set p10 = states('sensor.mamadairmonitor_pm10')|float(0) %}
         {{ (q >= 50 and i >= 50) or p10 >= 100 }}
 
