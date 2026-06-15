@@ -150,6 +150,9 @@ Rough priority order; each item becomes its own spec doc when actioned.
     service — HA uses no USB/BT/`devices` (the Zigbee dongle belongs to the `zigbee2mqtt`
     container; host networking doesn't need privileged); recreating the container is a brief
     HA restart.
+    🔧 **Repo edits landed** (compose `privileged` dropped + `setup.sh` chown); **one-time
+    blacky migration pending** (chown + recreate HA + supervised #11 catch-up pull). Spec/plan:
+    `docs/superpowers/{specs,plans}/2026-06-15-config-ownership-privilege-hardening*`.
 11. **Reconcile blacky git drift** *(part of #10)* — live config on blacky is not fully in
     git: `zigbee2mqtt/config/configuration.yaml` is tracked but has uncommitted local edits.
     ✅ **HACS components resolved:** all `config/custom_components/*/` plugin dirs are now
