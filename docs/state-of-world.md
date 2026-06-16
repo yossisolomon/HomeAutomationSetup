@@ -221,6 +221,19 @@ Rough priority order; each item becomes its own spec doc when actioned.
     independent "HA is down" signal, distinct from #17's deploy-failure alerts; tests the
     API+auth layer (so a broken monitoring token surfaces as an alert). Token-privilege split
     respects HA's per-user RBAC.
+    ✅ **Deployed + alert fired live (2026-06-16):** `up{job="homeassistant"}=1` after fixing a
+    quote-wrapped token in `secrets.yaml` (was 401); HA-down test drove the rule to `firing`.
+    Delivery hardened in #19 (the first Telegram send hit a transient timeout). Verify with
+    `scripts/test_ha_down_alert.sh`.
+19. ✅ **Grafana provisioning + Telegram-delivery hardening** *(done)* — three fixes found while
+    deploying #18: (a) the Grafana entrypoint `cp -r`'d provisioning into a persisted `/tmp`,
+    so a plain `docker restart grafana` kept **stale** rules/contact points until
+    `--force-recreate` — now `rm -rf`s the target first so every restart re-renders;
+    (b) `group_interval` lowered 5m→1m so a transient Telegram send failure retries quickly
+    instead of being swallowed; (c) `scripts/test_ha_down_alert.sh` added (trap-safe HA-down
+    alert verifier). Deploy-time cleanup: removed a stray legacy email integration on
+    `blacky-notify` (DB cruft in `grafana/data`; logged `SMTP not configured`). See the Grafana
+    section of [`docs/services.md`](services.md).
 
 ## 8. Decision Log
 
