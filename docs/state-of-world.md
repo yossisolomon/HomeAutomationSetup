@@ -212,6 +212,12 @@ Rough priority order; each item becomes its own spec doc when actioned.
     Deploy-failure alert via direct Telegram Bot API from the blacky-side script (HA-independent).
     Uses a **dedicated admin** CD token (separate from #18's monitoring token). cron.d as `yossi`
     every 2 min; `tests/test_cd_deploy.py` covers classification + rollback.
+    🔧 **Built (2026-06-18):** `scripts/cd_deploy.py` (stdlib-only, flock-guarded; pure
+    `classify_changes`/`parse_secret` + thin main) + `tests/test_cd_deploy.py` (22 cases);
+    `/etc/cron.d/cd-deploy` (every 2 min as `yossi`) added to `setup.sh`; `make check` annotated
+    as superseded. **Pending deploy:** mint the dedicated **admin** `cd_deploy_token` (HA →
+    Profile → Long-Lived Access Tokens) into `secrets.yaml` (without it CD falls back to restart
+    for every change), then install the cron on blacky + dry-run verify.
 18. **HA-liveness Grafana alert** *(native Prometheus scrape — Option 2)* — HA's `prometheus:`
     integration is enabled with an empty `include_entities` filter (endpoint up, ~no entity
     series); Prometheus scrapes `/api/prometheus` via `host.docker.internal:8123` with a

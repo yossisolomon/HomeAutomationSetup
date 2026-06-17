@@ -600,6 +600,26 @@ info "Installed NAS snapshot cron at ${CRON_DROPIN} (daily 04:00, as root)"
 warn "Old per-file backup crons in ${MAIN_USER}'s crontab are superseded — remove them:"
 warn "  sudo -u ${MAIN_USER} crontab -e   # delete the z2m / fans.yaml / rf_codes_cache lines"
 
+# ── 7b2. CD auto-deploy cron ──────────────────────────────────────────────────
+# Safe continuous deploy (scripts/cd_deploy.py, backlog #17): fetch origin/main,
+# check_config in the real container, reload-or-restart, roll back + Telegram on
+# failure. Runs as ${MAIN_USER} (owns config/ since #10, in the docker group) every
+# 2 minutes; flock guards against overlap. Replaces the manual `make check`.
+CD_DROPIN="/etc/cron.d/cd-deploy"
+cat > "$CD_DROPIN" <<CRON
+# Managed by setup.sh — safe CD poller (backlog #17). Do not hand-edit.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/2 * * * * ${MAIN_USER} /usr/bin/python3 ${HA_DIR}/scripts/cd_deploy.py >/dev/null 2>&1
+CRON
+chmod 644 "$CD_DROPIN"
+info "Installed CD auto-deploy cron at ${CD_DROPIN} (every 2 min, as ${MAIN_USER})"
+if ! grep -q '^cd_deploy_token:' "${HA_DIR}/config/secrets.yaml" 2>/dev/null; then
+    warn "No cd_deploy_token in config/secrets.yaml — CD will fall back to a full restart for"
+    warn "  every change (no graceful reload). Mint a DEDICATED ADMIN HA long-lived token"
+    warn "  (HA → Profile → Long-Lived Access Tokens) and add: cd_deploy_token: \"<token>\""
+fi
+
 # ── 7c. CUPS print server ─────────────────────────────────────────────────────
 # Host-installed CUPS sharing the USB Brother HL-1110 as a driverless IPP-Everywhere
 # queue. Driver: brlaser (open). Admin UI bound to localhost; LAN may print only.
