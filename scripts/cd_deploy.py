@@ -128,6 +128,11 @@ def changed_files(cwd: str, old: str, new: str) -> list:
     return [ln.strip() for ln in out.splitlines() if ln.strip()]
 
 
+def commit_subject(cwd: str, ref: str) -> str:
+    """First line of `ref`'s commit message — the (squash-merge) PR title. '' if unavailable."""
+    return git(["log", "-1", "--format=%s", ref], cwd).stdout.strip()
+
+
 def check_config(container: str) -> int:
     """Run HA's config validator inside the real container. 0 = valid."""
     return subprocess.run(
@@ -249,17 +254,21 @@ def main(argv=None) -> int:
     files = changed_files(args.ha_dir, prev, target)
     plan = classify_changes(files)
 
+    # Human-friendly target for alerts: PR title + short sha (sha kept for traceability).
+    subject = commit_subject(args.ha_dir, target)
+    tag = f'{target[:8]} "{subject}"' if subject else target[:8]
+
     if args.dry_run:
         _log(f"DRY-RUN: action={plan['action']} services={plan['reload_services']} files={files}")
         return 0
 
     if git(["pull", "--ff-only", "origin", args.branch], args.ha_dir).returncode != 0:
-        alert(f"CD: git pull --ff-only failed at {target[:8]} — not deploying. Check blacky tree.")
+        alert(f"CD: git pull --ff-only failed at {tag} — not deploying. Check blacky tree.")
         return 2
 
     if check_config(args.container) != 0:
         git(["reset", "--hard", prev], args.ha_dir)
-        alert(f"CD: check_config FAILED for {target[:8]} — rolled back to {prev[:8]}.")
+        alert(f"CD: check_config FAILED for {tag} — rolled back to {prev[:8]}.")
         return 4
 
     action = plan["action"]
@@ -279,7 +288,7 @@ def main(argv=None) -> int:
             _log(f"reload calls failed {failed} — escalating to restart")
             action = "restart"
         else:
-            alert(f"CD: deployed {target[:8]} via reload ({', '.join(plan['reload_services'])}).")
+            alert(f"CD: deployed {tag} via reload ({', '.join(plan['reload_services'])}).")
             return 0
 
     # restart (full recreate) + post-apply health gate + rollback on failure.
@@ -287,10 +296,10 @@ def main(argv=None) -> int:
     if not wait_healthy(args.base_url, timeout=args.health_timeout):
         git(["reset", "--hard", prev], args.ha_dir)
         restart_container(args.ha_dir, args.container)
-        alert(f"CD: {target[:8]} unhealthy after restart — rolled back to {prev[:8]} + restarted.")
+        alert(f"CD: {tag} unhealthy after restart — rolled back to {prev[:8]} + restarted.")
         return 5
 
-    alert(f"CD: deployed {target[:8]} via restart ({len(files)} files).")
+    alert(f"CD: deployed {tag} via restart ({len(files)} files).")
     return 0
 
 

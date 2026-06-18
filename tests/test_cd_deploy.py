@@ -108,6 +108,7 @@ def _wire(monkeypatch, *, prev, target, files, check_rc=0, secrets="", reload_st
     monkeypatch.setattr(c, "git", fake_git)
     monkeypatch.setattr(c, "rev", lambda cwd, ref: prev if ref == "HEAD" else target)
     monkeypatch.setattr(c, "changed_files", lambda cwd, a, b: list(files))
+    monkeypatch.setattr(c, "commit_subject", lambda cwd, ref: "feat: a thing (#42)")
     monkeypatch.setattr(c, "check_config", lambda container: check_rc)
     monkeypatch.setattr(c, "_read_secrets", lambda path: secrets)
     monkeypatch.setattr(c, "reload_via_api",
@@ -175,6 +176,16 @@ def test_main_restart_unhealthy_rolls_back(tmp_path, monkeypatch):
     assert ["reset", "--hard", "aaaaaaaa"] in calls["git"]
     assert calls["restart"] == 2  # initial recreate + post-rollback restart
     assert any("rolled back" in a for a in calls["alerts"])
+
+
+def test_main_alert_includes_commit_title_and_sha(tmp_path, monkeypatch):
+    calls = _wire(monkeypatch, prev="aaaaaaaa", target="bbbbbbbb",
+                  files=["config/automations.yaml"],
+                  secrets="cd_deploy_token: tok\n")
+    assert _run(tmp_path) == 0
+    msg = calls["alerts"][0]
+    assert "feat: a thing (#42)" in msg   # PR title for context
+    assert "bbbbbbbb" in msg              # sha retained for traceability
 
 
 def test_main_dry_run_applies_nothing(tmp_path, monkeypatch):
