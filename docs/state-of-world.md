@@ -59,11 +59,14 @@
 | Category | Device / Integration | Notes |
 |----------|---------------------|-------|
 | Air quality (outdoor) | WAQI — station `KMotzkin Begin – Haifa and Krayot` | On the owner's street |
-| Air quality (kitchen/living) | Qingping Air Monitor **Pro** | Wi-Fi/cloud-MQTT; has VOC sensor |
-| Air quality (master bedroom) | Qingping Air Monitor **Lite** | Wi-Fi/cloud-MQTT |
+| Air quality (kitchen/living) | Qingping Air Monitor **Pro** | Wi-Fi/cloud-MQTT; PM2.5/PM10 + CO2 + eTVOC (`sensor.airmonitor2_*`) |
+| Air quality (master bedroom) | Qingping Air Monitor **Lite** | Wi-Fi/cloud-MQTT; PM2.5/PM10 + CO2 (`sensor.airmonitorlitemaster_*`) |
+| Air quality (mamad) | Qingping Air Monitor **Lite** | Wi-Fi/cloud-MQTT; PM2.5/PM10 + CO2 (`sensor.mamadairmonitor_*`) |
 | Air purifier | Xiaomi Smart Air Purifier **4 Pro** (living room) | HACS Xiaomi MIoT Auto, local mode |
 | Air purifier | Xiaomi Smart Air Purifier **4 Compact** (master bedroom) | Same integration |
-| Ceiling fans | Broadlink RM4 Pro × 1 → 433 MHz RF, whole-house | 6 fan + 6 light template entities in `config/template/fans.yaml`. Three remote types in `scripts/fans.json`: **A** (toggle on/off, 6 speeds), **B** (balcony — separate off, RGB-ish light), **C** (Mamad — off-button only, any speed powers on) |
+| Air purifier | Xiaomi Smart Air Purifier **4 Compact** (mamad) | Same integration |
+| Climate (AC) | 2× IR A/C via `ar_smart_ir` (SmartIR) | `climate.smartir_climate_1581` (MainAC — Chigo ZH/TY-01, code 1581, RM4 Pro `192.168.1.18`); `climate.danaofficeac` (office Tornado Master-22 X, code 1622, RM4 mini `192.168.1.19`) |
+| Ceiling fans | Broadlink RM4 Pro `192.168.1.18` (fans + main A/C) + RM4 mini `192.168.1.19` (office A/C) → 433 MHz RF / IR, whole-house | 6 fan + 6 light template entities in `config/template/fans.yaml`. Three remote types in `scripts/fans.json`: **A** (toggle on/off, 6 speeds), **B** (balcony — separate off, RGB-ish light), **C** (Mamad — off-button only, any speed powers on) |
 | Boiler | LocalTuya smart switch (Smartr 16A, double-pole) | Done |
 | Messaging | Telegram bot | |
 | Weather | Met.no | |
@@ -78,9 +81,6 @@
 
 | Item | Status |
 |------|--------|
-| Qingping Air Monitor **Lite** (3rd unit, for Mamad) | Shipped; not yet hooked up |
-| Broadlink RM4 Pro (2nd unit, Bedroom 4 A/C) | Powered; not yet configured |
-| Main-AC IR codes | ✅ Found — code **1581** (Chigo ZH/TY-01) on RM4 Pro `192.168.1.18`; cool/dry/fan validated on hardware. Pending HA config under ar_smart_ir → Climate → Chigo. |
 | **Shelly 2PM Gen4 blinds (Zigbee)** | Arriving Sunday — intended as the **Zigbee backbone**: blinds run the full length of the longest wall, so the Gen4 controllers act as Zigbee repeaters end-to-end |
 | Master-bath Arctic-fan window vent | Needs a Zigbee temp/humidity sensor + USB Zigbee-controlled plug |
 
@@ -89,6 +89,8 @@
 ## 4. Confirmed Facts
 
 - **Qingping integration is Wi-Fi/cloud-MQTT** — no Bluetooth proxy needed. The Mamad unit just needs Wi-Fi (which reaches it through the mesh).
+- **All three Qingping monitors expose CO2** (plus PM2.5/PM10); the living-room **Pro** also exposes eTVOC. So CO2/ventilation logic needs no extra hardware.
+- **Both A/Cs are live in HA** as `climate.*` entities via the `ar_smart_ir` (SmartIR) integration — main (Chigo) and office (Tornado).
 - **Fans are 433 MHz RF via Broadlink** — covers the whole house. No Sonoff RF Bridge needed.
 - **Boiler is controlled via LocalTuya** (double-pole certified switch — not a cheap single-pole relay).
 
@@ -125,7 +127,10 @@ Rough priority order; each item becomes its own spec doc when actioned.
    gate with per-sensor include toggles, kill switch. HA-YAML — helpers + `template/purifier_auto.yaml`
    + 3 `climate-purifier-*` automations. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-14-climate-purifier-auto*`.
    Go-live (window pairing, Mamad-unit id resolution, live device tests) tracked as plan Task 10.
-   *Part B (open):* window-vs-AC call-to-action on outdoor AQ + CO2/ventilation.
+   *Part B (open, now unblocked):* window-vs-AC call-to-action + CO2/ventilation. Prereqs are live —
+   CO2 on all three Qingping units, and both A/Cs as `climate.*` entities (`climate.smartir_climate_1581`,
+   `climate.danaofficeac`). Outdoor metric = **WAQI AQI directly**. CTA via the `telegram_confirmable`
+   script blueprint. Next: write the Part B spec.
 2. ✅ **IR code-set finder script** *(done — `scripts/find_ir_codeset.py` + `ir_codec.py` + `ir_match.py`)* — records via Broadlink IR-learn, searches the `ar_smart_ir` IR database to identify the right code set. Validated on two ACs: Dana's office (RM4 mini `192.168.1.19`) → **code 1622 — Tornado Master-22 X** (full temp matrix + swing: stop/hSwing/vSwing/swing); main/central (RM4 Pro `192.168.1.18`) → **code 1581 — Chigo ZH/TY-01** (cool/dry/fan validated, no swing — vented mini-central). Both empirically confirmed on hardware. Note: ar_smart_ir `model` field = remote-controller part number (generic/rebadged), not AC brand — match by replay-confirm, not name.
 3. ✅ **CUPS print server** *(done — host CUPS + brlaser on blacky; config `cups/cupsd.conf`,
    queue + UFW provisioned by `setup.sh`)* — Brother HL-1110 (USB, GDI) shared as a
