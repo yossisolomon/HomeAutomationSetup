@@ -49,6 +49,15 @@ on" assumption is dropped — every purifier has explicit, addressable power.
 
 The Compacts' internal sensor lacks PM10, so those areas take PM10 from the Qingping only.
 
+**Correction (2026-06-18):** the original `air_bad` fusion took `max(Qingping, internal)`.
+Field data showed the purifiers' internal PM sensors read biased-high (~2×) versus the
+calibrated Qingping even while running (master internal 18 vs Qingping 7 with clean air), so
+`max()` pinned the value above the hysteresis clear line (12) and `*_air_bad` latched on
+indefinitely — at night this forced the Living Pro to high Manual on phantom bedroom
+pollution. Fusion is now **Qingping-primary**: the Qingping decides `air_bad`; the internal
+sensor is used only as a fallback when its Qingping is `unavailable`. `air_very_bad` is
+unaffected (it already required PM ≥ 50 on **both** sensors).
+
 **Window sensors** (Zigbee contact, on hand — paired during implementation): **Living
 balcony door**, **Yossi's office window**, and (optionally now) **Mamad window**. They are
 **not** per-area gates — they feed one **global** signal: *any considered window open →

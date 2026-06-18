@@ -30,10 +30,16 @@
       unique_id: living_air_bad
       device_class: problem
       state: >
-        {% set p25 = [states('sensor.airmonitor2_pm25')|float(0),
-                      states('sensor.zhimi_sg_974057338_vb4_pm2_5_density_p_3_4')|float(0)] | max %}
-        {% set p10 = [states('sensor.airmonitor2_pm10')|float(0),
-                      states('sensor.zhimi_sg_974057338_vb4_pm10_density_p_3_8')|float(0)] | max %}
+        {# Qingping (calibrated air monitor) is primary; the purifier's own internal PM
+           sensor reads biased-high (~2x) even while running, so using max() of both let
+           it pin air_bad on and the hysteresis never cleared. Use the internal only as a
+           fallback when the Qingping is unavailable. #}
+        {% set q25 = states('sensor.airmonitor2_pm25') %}
+        {% set p25 = q25|float(0) if q25 not in ['unavailable', 'unknown', 'none']
+                     else states('sensor.zhimi_sg_974057338_vb4_pm2_5_density_p_3_4')|float(0) %}
+        {% set q10 = states('sensor.airmonitor2_pm10') %}
+        {% set p10 = q10|float(0) if q10 not in ['unavailable', 'unknown', 'none']
+                     else states('sensor.zhimi_sg_974057338_vb4_pm10_density_p_3_8')|float(0) %}
         {% if this.state == 'on' %}
           {{ p25 > 12 or p10 > 30 }}
         {% else %}
@@ -44,8 +50,10 @@
       unique_id: master_air_bad
       device_class: problem
       state: >
-        {% set p25 = [states('sensor.airmonitorlitemaster_pm25')|float(0),
-                      states('sensor.xiaomi_sg_828358399_cpa4_pm2_5_density_p_3_4')|float(0)] | max %}
+        {# Qingping primary, purifier internal sensor fallback-only — see Living Air Bad. #}
+        {% set q25 = states('sensor.airmonitorlitemaster_pm25') %}
+        {% set p25 = q25|float(0) if q25 not in ['unavailable', 'unknown', 'none']
+                     else states('sensor.xiaomi_sg_828358399_cpa4_pm2_5_density_p_3_4')|float(0) %}
         {% set p10 = states('sensor.airmonitorlitemaster_pm10')|float(0) %}
         {% if this.state == 'on' %}
           {{ p25 > 12 or p10 > 30 }}
@@ -57,8 +65,10 @@
       unique_id: mamad_air_bad
       device_class: problem
       state: >
-        {% set p25 = [states('sensor.mamadairmonitor_pm25')|float(0),
-                      states('sensor.xiaomi_sg_828351147_cpa4_pm2_5_density_p_3_4')|float(0)] | max %}
+        {# Qingping primary, purifier internal sensor fallback-only — see Living Air Bad. #}
+        {% set q25 = states('sensor.mamadairmonitor_pm25') %}
+        {% set p25 = q25|float(0) if q25 not in ['unavailable', 'unknown', 'none']
+                     else states('sensor.xiaomi_sg_828351147_cpa4_pm2_5_density_p_3_4')|float(0) %}
         {% set p10 = states('sensor.mamadairmonitor_pm10')|float(0) %}
         {% if this.state == 'on' %}
           {{ p25 > 12 or p10 > 30 }}
