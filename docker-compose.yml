@@ -250,6 +250,11 @@ services:
       - "--path.rootfs=/rootfs"
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
       - "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
+      # Ignore BAT0: reading its phantom charge-threshold sysfs files spams the
+      # kernel log (~24/min thinkpad_acpi BCSG/BCTG AE_NOT_FOUND on the T400 EC).
+      # BAT0 health (Wh) is republished via the textfile collector (see setup.sh
+      # §3b/§6). AC stays included for outage detection.
+      - "--collector.powersupply.ignored-supplies=^BAT0$$"
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:9100/metrics || exit 1"]
       interval: 30s
