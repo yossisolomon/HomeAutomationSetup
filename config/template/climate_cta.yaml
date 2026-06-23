@@ -1,0 +1,64 @@
+# Window-vs-A/C CTA + CO2/ventilation — derived signals.
+# Consumed by the climate-cta-ventilate automation + script.climate_cta. See
+# docs/superpowers/specs/2026-06-18-climate-window-vs-ac-cta-design.md
+#
+# Same this.state hysteresis caveat as purifier_auto.yaml: the hysteresis memory does NOT
+# survive an HA restart (this.state -> 'unknown' re-evaluates against the ON thresholds;
+# fails safe). The WAQI sensor id is resolved live on blacky — until then a missing value
+# makes outdoor_air_ok false, so the CTA recommends the A/C (never a window onto unknown air).
+
+- binary_sensor:
+    - name: "Apartment CO2 High"
+      unique_id: apartment_co2_high
+      device_class: problem
+      state: >
+        {% set ids = ['sensor.airmonitor2_co2',
+                      'sensor.airmonitorlitemaster_co2',
+                      'sensor.mamadairmonitor_co2'] %}
+        {% set vals = ids | map('states')
+                          | reject('in', ['unavailable', 'unknown', 'none'])
+                          | map('float', 0) | list %}
+        {% if vals | length == 0 %}
+          false
+        {% elif this.state == 'on' %}
+          {{ vals | max > 1000 }}
+        {% else %}
+          {{ vals | max >= 1400 }}
+        {% endif %}
+
+    - name: "Apartment Air Degraded"
+      unique_id: apartment_air_degraded
+      device_class: problem
+      state: >
+        {{ is_state('binary_sensor.apartment_co2_high', 'on')
+           or is_state('binary_sensor.living_air_bad', 'on')
+           or is_state('binary_sensor.master_air_bad', 'on')
+           or is_state('binary_sensor.mamad_air_bad', 'on') }}
+
+    - name: "Outdoor Air Ok"
+      unique_id: outdoor_air_ok
+      state: >
+        {% set aqi = states('sensor.waqi_REPLACE_ME') | float(-1) %}
+        {% set maxaqi = states('input_number.outdoor_aqi_ventilate_max') | float(100) %}
+        {{ aqi >= 0 and aqi <= maxaqi }}
+
+    - name: "Ventilate Favorable"
+      unique_id: ventilate_favorable
+      state: >
+        {% set otemp = state_attr('sensor.waqi_REPLACE_ME', 'temperature') | float(99) %}
+        {% set tmax = states('input_number.ventilate_max_outdoor_temp') | float(26) %}
+        {{ is_state('binary_sensor.outdoor_air_ok', 'on')
+           and otemp <= tmax
+           and is_state('binary_sensor.any_window_open', 'off') }}
+
+    - name: "CTA Quiet Hours"
+      unique_id: cta_quiet_hours
+      state: >
+        {% set now_s = now().hour * 3600 + now().minute * 60 + now().second %}
+        {% set start = state_attr('input_datetime.climate_cta_quiet_start', 'timestamp')|int(0) %}
+        {% set end = state_attr('input_datetime.climate_cta_quiet_end', 'timestamp')|int(0) %}
+        {% if start <= end %}
+          {{ start <= now_s < end }}
+        {% else %}
+          {{ now_s >= start or now_s < end }}
+        {% endif %}
