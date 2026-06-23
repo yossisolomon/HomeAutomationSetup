@@ -228,6 +228,9 @@ CHARGING=$([ "$STATUS" = "Charging" ] && echo 1 || echo 0)
 # the working _BIF/_BST ACPI methods, so reading them is safe (no BCSG/BCTG).
 ENERGY_FULL=$(cat /sys/class/power_supply/BAT0/energy_full 2>/dev/null || echo "")
 ENERGY_FULL_DESIGN=$(cat /sys/class/power_supply/BAT0/energy_full_design 2>/dev/null || echo "")
+# AC mains presence. Republished here because the node_exporter powersupplyclass
+# collector is disabled (see §6) — reading AC/online is safe (no BCSG/BCTG).
+AC_ONLINE=$(cat /sys/class/power_supply/AC/online 2>/dev/null || echo "")
 
 TEXTFILE_DIR="/var/lib/node_exporter/textfile_collector"
 
@@ -254,6 +257,11 @@ if [[ -n "$CAPACITY" ]]; then
             echo "# HELP thinkpad_battery_energy_full_design_wh Design full-charge capacity (Wh)"
             echo "# TYPE thinkpad_battery_energy_full_design_wh gauge"
             echo "thinkpad_battery_energy_full_design_wh $(awk "BEGIN{printf \"%.2f\", ${ENERGY_FULL_DESIGN}/1000000}")"
+        fi
+        if [[ "$AC_ONLINE" =~ ^[01]$ ]]; then
+            echo "# HELP blacky_ac_online Mains AC adapter present (1=online, 0=on battery)"
+            echo "# TYPE blacky_ac_online gauge"
+            echo "blacky_ac_online ${AC_ONLINE}"
         fi
     } > "${TEXTFILE_DIR}/battery.prom"
 fi
