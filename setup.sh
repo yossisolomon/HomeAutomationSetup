@@ -222,6 +222,12 @@ CAPACITY=$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo "")
 STATUS=$(  cat /sys/class/power_supply/BAT0/status   2>/dev/null || echo "unknown")
 MINUTES_REMAINING=$(cat /sys/devices/platform/smapi/BAT0/remaining_running_time 2>/dev/null || echo "")
 CHARGING=$([ "$STATUS" = "Charging" ] && echo 1 || echo 0)
+# Health (Wh). Republished here because the node_exporter powersupplyclass
+# collector ignores BAT0 (see §6: reading BAT0's phantom charge-threshold sysfs
+# files spams the kernel log). energy_full/energy_full_design are µWh and map to
+# the working _BIF/_BST ACPI methods, so reading them is safe (no BCSG/BCTG).
+ENERGY_FULL=$(cat /sys/class/power_supply/BAT0/energy_full 2>/dev/null || echo "")
+ENERGY_FULL_DESIGN=$(cat /sys/class/power_supply/BAT0/energy_full_design 2>/dev/null || echo "")
 
 TEXTFILE_DIR="/var/lib/node_exporter/textfile_collector"
 
@@ -238,6 +244,16 @@ if [[ -n "$CAPACITY" ]]; then
             echo "# HELP thinkpad_battery_runtime_minutes Estimated runtime remaining (minutes)"
             echo "# TYPE thinkpad_battery_runtime_minutes gauge"
             echo "thinkpad_battery_runtime_minutes ${MINUTES_REMAINING}"
+        fi
+        if [[ "$ENERGY_FULL" =~ ^[0-9]+$ ]]; then
+            echo "# HELP thinkpad_battery_energy_full_wh Current full-charge capacity (Wh)"
+            echo "# TYPE thinkpad_battery_energy_full_wh gauge"
+            echo "thinkpad_battery_energy_full_wh $(awk "BEGIN{printf \"%.2f\", ${ENERGY_FULL}/1000000}")"
+        fi
+        if [[ "$ENERGY_FULL_DESIGN" =~ ^[0-9]+$ ]]; then
+            echo "# HELP thinkpad_battery_energy_full_design_wh Design full-charge capacity (Wh)"
+            echo "# TYPE thinkpad_battery_energy_full_design_wh gauge"
+            echo "thinkpad_battery_energy_full_design_wh $(awk "BEGIN{printf \"%.2f\", ${ENERGY_FULL_DESIGN}/1000000}")"
         fi
     } > "${TEXTFILE_DIR}/battery.prom"
 fi
@@ -370,6 +386,110 @@ SUBSYSTEM=="power_supply", ATTR{type}=="Mains", ATTR{online}=="1", \
 RULES
 udevadm control --reload-rules
 info "Battery-aware power management installed (1h timer + 20% emergency floor)"
+
+# ── 3d. Battery gauge daily refresh (force a short charge to re-sync the gauge) ─
+# The aged T400 fuel gauge can freeze its reported % at the START threshold for
+# weeks while real charge drains: TLP only recharges when reported % < START, so
+# a stuck reading blocks recharge → silent drain until the gauge finally re-syncs.
+# A short daily forced charge exercises the gauge — bumping start_charge_thresh
+# above the current reading makes the EC begin charging, which re-syncs the gauge
+# and reveals the true %. ~5 min ≈ +3%, far gentler than a full recalibration.
+info "Installing battery gauge daily-refresh job..."
+
+cat > /usr/local/bin/battery-gauge-refresh.sh <<'GAUGEEOF'
+#!/usr/bin/env bash
+# Daily forced short charge to re-sync the ThinkPad fuel gauge and reveal true %.
+# Runs as root via systemd timer (08:00). See setup.sh §3d for rationale.
+set -uo pipefail
+
+SMAPI=/sys/devices/platform/smapi/BAT0
+SYS=/sys/class/power_supply/BAT0
+TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
+FORCE_START=90        # > any plausible stuck reading → EC begins charging
+FORCE_STOP=95         # modest cap: bounds worst case if the restore trap fails
+HOLD_SECONDS=300
+
+# Canonical thresholds live in /etc/tlp.conf (§3) — single source of truth.
+RESTORE_START=$(grep -oP '^START_CHARGE_THRESH_BAT0=\K[0-9]+' /etc/tlp.conf 2>/dev/null || true)
+RESTORE_STOP=$(grep -oP '^STOP_CHARGE_THRESH_BAT0=\K[0-9]+'  /etc/tlp.conf 2>/dev/null || true)
+: "${RESTORE_START:=70}"
+: "${RESTORE_STOP:=80}"
+
+restore() {
+    echo "$RESTORE_STOP"  > "$SMAPI/stop_charge_thresh"  2>/dev/null || true
+    echo "$RESTORE_START" > "$SMAPI/start_charge_thresh" 2>/dev/null || true
+    logger -t battery-gauge-refresh "thresholds restored to ${RESTORE_START}/${RESTORE_STOP}"
+}
+trap restore EXIT
+
+BEFORE=$(cat "$SYS/capacity" 2>/dev/null || echo "")
+logger -t battery-gauge-refresh "starting refresh (before=${BEFORE}%)"
+
+# Raise stop first, then start above the (possibly stuck) reading to trigger charge.
+echo "$FORCE_STOP"  > "$SMAPI/stop_charge_thresh"  2>/dev/null || true
+echo "$FORCE_START" > "$SMAPI/start_charge_thresh" 2>/dev/null || true
+
+sleep "$HOLD_SECONDS"
+
+AFTER=$(cat "$SYS/capacity" 2>/dev/null || echo "")
+STATUS=$(cat "$SYS/status" 2>/dev/null || echo "unknown")
+PCT_ERROR=$(cat "$SMAPI/remaining_percent_error" 2>/dev/null || echo "")
+CYCLES=$(cat "$SMAPI/cycle_count" 2>/dev/null || echo "")
+logger -t battery-gauge-refresh "done (before=${BEFORE}% after=${AFTER}% status=${STATUS} pct_error=${PCT_ERROR} cycles=${CYCLES})"
+if [[ "$STATUS" != "Charging" ]]; then
+    logger -t battery-gauge-refresh "WARNING: status not Charging during refresh — force-charge may not have engaged"
+fi
+
+# Publish to its OWN textfile so it never clobbers battery.prom (§3b writer).
+if [[ "$AFTER" =~ ^[0-9]+$ ]]; then
+    {
+        echo "# HELP thinkpad_battery_gauge_refresh_percent True battery % revealed by the daily forced charge"
+        echo "# TYPE thinkpad_battery_gauge_refresh_percent gauge"
+        echo "thinkpad_battery_gauge_refresh_percent ${AFTER}"
+        echo "# HELP thinkpad_battery_gauge_refresh_timestamp_seconds Unix time of last gauge refresh"
+        echo "# TYPE thinkpad_battery_gauge_refresh_timestamp_seconds gauge"
+        echo "thinkpad_battery_gauge_refresh_timestamp_seconds $(date +%s)"
+        if [[ "$PCT_ERROR" =~ ^[0-9]+$ ]]; then
+            echo "# HELP thinkpad_battery_remaining_percent_error Fuel-gauge self-reported error (higher = less reliable)"
+            echo "# TYPE thinkpad_battery_remaining_percent_error gauge"
+            echo "thinkpad_battery_remaining_percent_error ${PCT_ERROR}"
+        fi
+        if [[ "$CYCLES" =~ ^[0-9]+$ ]]; then
+            echo "# HELP thinkpad_battery_cycle_count Battery charge-cycle count"
+            echo "# TYPE thinkpad_battery_cycle_count gauge"
+            echo "thinkpad_battery_cycle_count ${CYCLES}"
+        fi
+    } > "${TEXTFILE_DIR}/battery_gauge_refresh.prom"
+fi
+GAUGEEOF
+chmod +x /usr/local/bin/battery-gauge-refresh.sh
+
+cat > /etc/systemd/system/battery-gauge-refresh.service <<'SVCEOF'
+[Unit]
+Description=Daily forced short charge to re-sync the ThinkPad fuel gauge
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/battery-gauge-refresh.sh
+SVCEOF
+
+cat > /etc/systemd/system/battery-gauge-refresh.timer <<'TIMEREOF'
+[Unit]
+Description=Run battery gauge refresh daily at 08:00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+TIMEREOF
+
+systemctl daemon-reload
+systemctl enable battery-gauge-refresh.timer
+systemctl start  battery-gauge-refresh.timer
+info "Battery gauge daily-refresh active (08:00 daily; metrics at ${TEXTFILE_DIR}/battery_gauge_refresh.prom)"
 
 # ── 4. Docker Engine (native, no snap, no Colima) ─────────────────────────────
 info "Installing Docker Engine..."

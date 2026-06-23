@@ -1,0 +1,165 @@
+{
+  "uid": "blacky-battery",
+  "title": "Blacky Battery",
+  "tags": ["blacky", "battery"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-30d", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Charge % — live gauge vs daily truth",
+      "description": "Live fuel-gauge reading (unreliable on this aged pack; can freeze flat for weeks) overlaid with the trustworthy daily forced-charge probe. A flat live line with no daily step = stuck gauge.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "showPoints": "auto", "spanNulls": true }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "daily truth %" },
+            "properties": [
+              { "id": "custom.drawStyle", "value": "points" },
+              { "id": "custom.pointSize", "value": 8 }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        { "refId": "A", "expr": "thinkpad_battery_capacity_percent", "legendFormat": "live gauge %" },
+        { "refId": "B", "expr": "thinkpad_battery_gauge_refresh_percent", "legendFormat": "daily truth %" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Battery health (% of design Wh)",
+      "description": "Current full-charge capacity vs factory design capacity. Lower = degraded pack / shorter UPS runtime.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 70 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "thinkpad_battery_energy_full_wh / thinkpad_battery_energy_full_design_wh * 100", "instant": true }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Capacity (Wh) — full vs design",
+      "description": "Degradation trend: full-charge capacity drifting below design capacity over time.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 9 },
+      "fieldConfig": {
+        "defaults": { "unit": "watth", "custom": { "drawStyle": "line", "spanNulls": true } }
+      },
+      "targets": [
+        { "refId": "A", "expr": "thinkpad_battery_energy_full_wh", "legendFormat": "full" },
+        { "refId": "B", "expr": "thinkpad_battery_energy_full_design_wh", "legendFormat": "design" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Gauge confidence (% error)",
+      "description": "tp_smapi remaining_percent_error: the gauge's own uncertainty estimate. High = unreliable reading (this pack reads ~25).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 9 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "thinkpad_battery_remaining_percent_error", "instant": true }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Cycle count",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "options": { "colorMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "thinkpad_battery_cycle_count", "instant": true }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Last gauge-refresh",
+      "description": "Time since the daily forced-charge probe last ran. Alerts if >48h (job stopped).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 13 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 172800 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "time() - thinkpad_battery_gauge_refresh_timestamp_seconds", "instant": true }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "state-timeline",
+      "title": "Charging state",
+      "description": "When the EC was actually charging (1) vs idle (0). Should show a short pulse each morning from the daily refresh.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 16, "x": 0, "y": 17 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "idle", "color": "blue" }, "1": { "text": "charging", "color": "green" } } }
+          ]
+        }
+      },
+      "targets": [
+        { "refId": "A", "expr": "thinkpad_battery_charging", "legendFormat": "charging" }
+      ]
+    }
+  ]
+}
