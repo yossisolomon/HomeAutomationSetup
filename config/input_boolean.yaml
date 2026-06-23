@@ -20,3 +20,9 @@ window_consider_mamad:
   name: Consider Mamad Window
   icon: mdi:window-open-variant
   initial: false
+
+# Climate window-vs-A/C CTA master switch. No `initial:` (persists last state, comes up OFF
+# on first load) — same safe bring-up as purifier_auto_enable.
+climate_cta_enable:
+  name: Climate CTA Enable
+  icon: mdi:message-alert

@@ -33,3 +33,15 @@ mamad_night_end:
   has_date: false
   has_time: true
   initial: "07:00:00"
+
+climate_cta_quiet_start:
+  name: Climate CTA Quiet Start
+  has_date: false
+  has_time: true
+  initial: "22:00:00"
+
+climate_cta_quiet_end:
+  name: Climate CTA Quiet End
+  has_date: false
+  has_time: true
+  initial: "08:00:00"
