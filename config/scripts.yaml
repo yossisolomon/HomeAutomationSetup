@@ -1,0 +1,45 @@
+# meta: intent="Telegram CTA: choose open-window vs run central A/C on degraded air"; waf=med; mode=cta
+climate_cta:
+  alias: climate-cta-window-vs-ac
+  use_blueprint:
+    path: homeassistant/telegram_confirmable.yaml
+    input:
+      target_chat: !secret telegram_chat_id
+      message: >-
+        {% set fav = is_state('binary_sensor.ventilate_favorable', 'on') %}
+        {% set aqi = states('sensor.waqi_REPLACE_ME') %}
+        {% set otemp = state_attr('sensor.waqi_REPLACE_ME', 'temperature') %}
+        {% set co2 = [states('sensor.airmonitor2_co2') | float(0),
+                      states('sensor.airmonitorlitemaster_co2') | float(0),
+                      states('sensor.mamadairmonitor_co2') | float(0)] | max %}
+        🏠 Indoor air degrading (CO2 {{ co2 | round }} ppm).
+        Outside: AQI {{ aqi }}, {{ otemp }}°C.
+        {% if fav %}👉 Better option: open a window (clean, cool outside).{% else %}👉 Better option: run the A/C (outside not good for ventilating).{% endif %}
+      confirm_text: "❄️ Run A/C"
+      confirm_action:
+        - action: climate.set_hvac_mode
+          target:
+            entity_id: climate.smartir_climate_1581
+          data:
+            hvac_mode: cool
+        - action: climate.set_temperature
+          target:
+            entity_id: climate.smartir_climate_1581
+          data:
+            temperature: "{{ states('input_number.ac_cool_setpoint') | float(24) }}"
+      dismiss_text: "🪟 Open window"
+      dismiss_action:
+        - action: telegram_bot.send_message
+          data:
+            target: !secret telegram_chat_id
+            message: "👍 Opening a window — A/C standing down."
+        - if:
+            - condition: not
+              conditions:
+                - condition: state
+                  entity_id: climate.smartir_climate_1581
+                  state: "off"
+          then:
+            - action: climate.turn_off
+              target:
+                entity_id: climate.smartir_climate_1581

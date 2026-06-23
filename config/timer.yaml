@@ -1,0 +1,5 @@
+# Re-prompt rate-limit for the climate CTA: the automation only fires when this is idle,
+# then starts it. 2h between prompts.
+climate_cta_cooldown:
+  name: Climate CTA Cooldown
+  duration: "02:00:00"

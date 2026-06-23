@@ -1,0 +1,28 @@
+# Tunables for the climate window-vs-A/C CTA. `initial:` sets a sane default but resets on
+# every HA restart (restarts are rare; deploys are reload-safe) — matches input_datetime's
+# choice. Tune from the HA dashboard, NOT by replying to the Telegram message.
+ac_cool_setpoint:
+  name: A/C Cool Setpoint
+  icon: mdi:thermometer
+  min: 16
+  max: 30
+  step: 1
+  unit_of_measurement: "°C"
+  initial: 24
+
+outdoor_aqi_ventilate_max:
+  name: Outdoor AQI Ventilate Max
+  icon: mdi:air-filter
+  min: 0
+  max: 300
+  step: 5
+  initial: 100
+
+ventilate_max_outdoor_temp:
+  name: Ventilate Max Outdoor Temp
+  icon: mdi:thermometer
+  min: 10
+  max: 40
+  step: 1
+  unit_of_measurement: "°C"
+  initial: 26

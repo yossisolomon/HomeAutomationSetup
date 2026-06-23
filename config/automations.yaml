@@ -240,3 +240,26 @@
             - action: switch.turn_off
               target:
                 entity_id: switch.xiaomi_sg_828351147_cpa4_on_p_2_1
+# meta: intent="when apartment air degrades (CO2/PM), ask via Telegram to open a window vs run the central A/C, decided by outdoor AQI + temp"; waf=med; mode=cta
+- alias: climate-cta-ventilate
+  id: climate_cta_ventilate
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.apartment_air_degraded
+      to: "on"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.climate_cta_enable
+      state: "on"
+    - condition: state
+      entity_id: binary_sensor.cta_quiet_hours
+      state: "off"
+    - condition: state
+      entity_id: timer.climate_cta_cooldown
+      state: idle
+  actions:
+    - action: script.climate_cta
+    - action: timer.start
+      target:
+        entity_id: timer.climate_cta_cooldown

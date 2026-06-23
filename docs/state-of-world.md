@@ -127,10 +127,12 @@ Rough priority order; each item becomes its own spec doc when actioned.
    gate with per-sensor include toggles, kill switch. HA-YAML — helpers + `template/purifier_auto.yaml`
    + 3 `climate-purifier-*` automations. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-14-climate-purifier-auto*`.
    Go-live (window pairing, Mamad-unit id resolution, live device tests) tracked as plan Task 10.
-   *Part B (open, now unblocked):* window-vs-AC call-to-action + CO2/ventilation. Prereqs are live —
-   CO2 on all three Qingping units, and both A/Cs as `climate.*` entities (`climate.smartir_climate_1581`,
-   `climate.danaofficeac`). Outdoor metric = **WAQI AQI directly**. CTA via the `telegram_confirmable`
-   script blueprint. Next: write the Part B spec.
+   *Part B done:* whole-apartment window-vs-AC Telegram CTA on outdoor AQI + temp, plus
+   CO2/ventilation prompt. HA-YAML — `template/climate_cta.yaml` + `climate_cta` blueprint
+   script + `climate-cta-ventilate` automation + helpers (kill switch, tunables, quiet-hours,
+   cooldown). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-18-climate-window-vs-ac-cta*`.
+   Go-live (resolve WAQI sensor id, verify A/C controls, prove the Telegram button flow,
+   flip `climate_cta_enable` on) tracked in the plan's live tasks.
 2. ✅ **IR code-set finder script** *(done — `scripts/find_ir_codeset.py` + `ir_codec.py` + `ir_match.py`)* — records via Broadlink IR-learn, searches the `ar_smart_ir` IR database to identify the right code set. Validated on two ACs: Dana's office (RM4 mini `192.168.1.19`) → **code 1622 — Tornado Master-22 X** (full temp matrix + swing: stop/hSwing/vSwing/swing); main/central (RM4 Pro `192.168.1.18`) → **code 1581 — Chigo ZH/TY-01** (cool/dry/fan validated, no swing — vented mini-central). Both empirically confirmed on hardware. Note: ar_smart_ir `model` field = remote-controller part number (generic/rebadged), not AC brand — match by replay-confirm, not name.
 3. ✅ **CUPS print server** *(done — host CUPS + brlaser on blacky; config `cups/cupsd.conf`,
    queue + UFW provisioned by `setup.sh`)* — Brother HL-1110 (USB, GDI) shared as a

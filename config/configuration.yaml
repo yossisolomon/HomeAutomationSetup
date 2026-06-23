@@ -10,6 +10,8 @@ script: !include scripts.yaml
 scene: !include scenes.yaml
 input_boolean: !include input_boolean.yaml
 input_datetime: !include input_datetime.yaml
+input_number: !include input_number.yaml
+timer: !include timer.yaml
 
 # ThinkPad T400 battery sensors (HA 2022.6+ command_line integration syntax)
 # Reads directly from /sys/class/power_supply mounted in docker-compose.yml
