@@ -145,7 +145,12 @@ groups:
         isPaused: false
 
       # ── Battery ───────────────────────────────────────────────────────────────
-      # Sourced from node_exporter textfile collector written by ha-battery-mqtt.sh
+      # Sourced from node_exporter textfile collector written by ha-battery-metrics.sh
+      # NOTE: thinkpad_battery_capacity_percent is the LIVE fuel-gauge reading and on
+      # this aged pack is unreliable — it can freeze high (remaining_percent_error ≈ 25)
+      # for weeks while real charge drains. The rules below that read it (<20/<10) are
+      # ADVISORY only. The trustworthy charge reading is thinkpad_battery_gauge_refresh_percent,
+      # produced once a day by battery-gauge-refresh.sh (setup.sh §3d) forcing a short charge.
       - uid: blacky_battery_low
         title: "Low Battery (<20%)"
         condition: threshold
@@ -208,4 +213,104 @@ groups:
           summary: "ThinkPad battery critically low (<10%) — imminent shutdown risk"
         labels:
           severity: critical
+        isPaused: false
+
+      # True charge revealed by the daily forced-charge probe (the trustworthy reading).
+      # This is the alert that would have caught the silent drain weeks earlier.
+      - uid: blacky_battery_true_low
+        title: "Battery truly low (daily probe <40%)"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 86400, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: 'thinkpad_battery_gauge_refresh_percent'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [40]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: OK
+        execErrState: OK
+        for: 0m
+        annotations:
+          summary: "Daily gauge-refresh shows the pack is actually <40% — real charge is low (live gauge is unreliable)"
+        labels:
+          severity: warning
+        isPaused: false
+
+      # The daily refresh job stopped running (>48h since last successful probe).
+      - uid: blacky_gauge_refresh_stale
+        title: "Battery gauge-refresh stale (>48h)"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: 'time() - thinkpad_battery_gauge_refresh_timestamp_seconds'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [172800]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: Alerting
+        execErrState: OK
+        for: 0m
+        annotations:
+          summary: "battery-gauge-refresh has not run in >48h — daily true-% probe is stale"
+        labels:
+          severity: warning
+        isPaused: false
+
+      # Pack degradation: current full-charge capacity vs design (Wh). ~82% now.
+      - uid: blacky_battery_health_low
+        title: "Battery health low (<50% of design Wh)"
+        condition: threshold
+        data:
+          - refId: A
+            relativeTimeRange: {from: 3600, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: 'thinkpad_battery_energy_full_wh / thinkpad_battery_energy_full_design_wh * 100'
+              instant: true
+              refId: A
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [50]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last, params: []}
+                  type: query
+        noDataState: OK
+        execErrState: OK
+        for: 1h
+        annotations:
+          summary: "ThinkPad battery health <50% of design capacity — UPS runtime degraded, plan replacement"
+        labels:
+          severity: warning
         isPaused: false
