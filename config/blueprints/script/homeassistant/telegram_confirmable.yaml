@@ -54,6 +54,9 @@ sequence:
       dismiss_label: !input dismiss_text
   - alias: "Send Telegram message with inline buttons"
     service: telegram_bot.send_message
+    # Capture the sent message so we can edit it later (strip buttons / show outcome),
+    # including on timeout when no callback (and thus no message id) ever arrives.
+    response_variable: sent
     data:
       chat_id: !input target_chat
       message: !input message
@@ -63,6 +66,10 @@ sequence:
       # the comma, else the 2nd button text gets a leading space.
       inline_keyboard:
         - "{{ confirm_label }}:/{{ token_confirm }},{{ dismiss_label }}:/{{ token_dismiss }}"
+  - alias: "Remember the sent message (for timeout cleanup)"
+    variables:
+      sent_chat: "{{ sent.chats[0].chat_id }}"
+      sent_msg: "{{ sent.chats[0].message_id }}"
   - alias: "Await the button press"
     wait_for_trigger:
       - trigger: event
@@ -75,7 +82,7 @@ sequence:
           data: "/{{ token_dismiss }}"
     timeout:
       hours: !input timeout_hours
-  - alias: "Acknowledge the callback + run the chosen action"
+  - alias: "Acknowledge + act, or note timeout — then remove the now-stale buttons"
     if:
       - condition: template
         value_template: "{{ wait.trigger is not none }}"
@@ -84,8 +91,25 @@ sequence:
         data:
           callback_query_id: "{{ wait.trigger.event.data.id }}"
           message: "Got it"
+      - variables:
+          picked: >-
+            {{ confirm_label if wait.trigger.event.data.data == '/' ~ token_confirm
+               else dismiss_label }}
       - choose:
           - conditions: "{{ wait.trigger.event.data.data == '/' ~ token_confirm }}"
             sequence: !input confirm_action
           - conditions: "{{ wait.trigger.event.data.data == '/' ~ token_dismiss }}"
             sequence: !input dismiss_action
+      # Edit the original message: append the choice and drop the keyboard (omitting
+      # inline_keyboard removes it), so the buttons can't be tapped again.
+      - service: telegram_bot.edit_message
+        data:
+          message_id: "{{ wait.trigger.event.data.message.message_id }}"
+          chat_id: "{{ wait.trigger.event.data.chat_id }}"
+          message: "{{ wait.trigger.event.data.message.text }}\n\n✅ {{ picked }}"
+    else:
+      - service: telegram_bot.edit_message
+        data:
+          message_id: "{{ sent_msg }}"
+          chat_id: "{{ sent_chat }}"
+          message: "⌛ This request expired with no response — ignored."
