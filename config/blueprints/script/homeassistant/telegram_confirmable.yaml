@@ -55,7 +55,7 @@ sequence:
   - alias: "Send Telegram message with inline buttons"
     service: telegram_bot.send_message
     data:
-      target: !input target_chat
+      chat_id: !input target_chat
       message: !input message
       inline_keyboard:
         - "{{ confirm_label }}:/{{ token_confirm }}, {{ dismiss_label }}:/{{ token_dismiss }}"
