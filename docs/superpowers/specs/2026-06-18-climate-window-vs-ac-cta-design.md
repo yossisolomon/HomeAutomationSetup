@@ -54,9 +54,8 @@ binary window-vs-A/C choice; the **message text** carries the recommendation.
 | Indoor PM (per area) | Part A's `binary_sensor.<area>_air_bad` | live |
 | Window-already-open | Part A's `binary_sensor.any_window_open` | live |
 | A/C (central) | `climate.smartir_climate_1581` | controls **verify on blacky** before enable |
-| Outdoor AQI | `sensor.waqi_*` | **resolve id on blacky** |
-| Outdoor temp | WAQI temperature attribute/entity | **resolve on blacky** |
-| Indoor temp | warmest Qingping temp sensor | **resolve ids on blacky** |
+| Outdoor AQI | `sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_air_quality_index` | resolved (live) |
+| Outdoor temp | `sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_temperature` (separate WAQI sensor — this integration version exposes temp as its own entity, **not** an attribute) | resolved (live) |
 | Telegram chat | `!secret telegram_chat_id` | gitignored secret |
 
 ## Thresholds

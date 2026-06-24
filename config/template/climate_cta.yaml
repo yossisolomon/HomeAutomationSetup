@@ -38,14 +38,14 @@
     - name: "Outdoor Air Ok"
       unique_id: outdoor_air_ok
       state: >
-        {% set aqi = states('sensor.waqi_REPLACE_ME') | float(-1) %}
+        {% set aqi = states('sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_air_quality_index') | float(-1) %}
         {% set maxaqi = states('input_number.outdoor_aqi_ventilate_max') | float(100) %}
         {{ aqi >= 0 and aqi <= maxaqi }}
 
     - name: "Ventilate Favorable"
       unique_id: ventilate_favorable
       state: >
-        {% set otemp = state_attr('sensor.waqi_REPLACE_ME', 'temperature') | float(99) %}
+        {% set otemp = states('sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_temperature') | float(99) %}
         {% set tmax = states('input_number.ventilate_max_outdoor_temp') | float(26) %}
         {{ is_state('binary_sensor.outdoor_air_ok', 'on')
            and otemp <= tmax
