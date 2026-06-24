@@ -263,3 +263,29 @@
     - action: timer.start
       target:
         entity_id: timer.climate_cta_cooldown
+# meta: intent="ask to turn off the central A/C when a window opens while it runs (3min debounce + 30min cooldown, no auto-toggle)"; waf=low; mode=cta
+- alias: climate-cta-window-ac-off
+  id: climate_cta_window_ac_off
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.any_window_open
+      to: "on"
+      for: "00:03:00"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.climate_cta_enable
+      state: "on"
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: climate.smartir_climate_1581
+          state: "off"
+    - condition: state
+      entity_id: timer.climate_window_ac_cooldown
+      state: idle
+  actions:
+    - action: script.climate_cta_window_ac
+    - action: timer.start
+      target:
+        entity_id: timer.climate_window_ac_cooldown

@@ -67,29 +67,29 @@ def parse_scripts(path):
     entries = []
     if not path.exists():
         return entries
-    last_meta = None
+    pending_meta = None   # a "# meta:" comment, applied to the next script key
     current = None
+    current_meta = None
     alias = None
 
     def flush():
-        nonlocal current, alias, last_meta
+        nonlocal current, alias, current_meta
         if current is not None:
-            entries.append(Entry(alias or current, "HA-script", path.name, last_meta))
-        current, alias, last_meta = None, None, None
+            entries.append(Entry(alias or current, "HA-script", path.name, current_meta))
+        current, alias, current_meta = None, None, None
 
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.lstrip().startswith("#"):
             mm = META_RE.search(line)
-            if mm and current is None:
-                last_meta = parse_meta(mm.group(1))
+            if mm:
+                pending_meta = parse_meta(mm.group(1))
             continue
         km = SCRIPT_KEY_RE.match(line)
         if km:
-            saved_meta = last_meta if current is None else None
             flush()
             current = km.group(1)
-            if saved_meta is not None:
-                last_meta = saved_meta
+            current_meta = pending_meta   # consume the meta seen just above this key
+            pending_meta = None
             continue
         am = ALIAS_RE.match(line)
         if am and current is not None:

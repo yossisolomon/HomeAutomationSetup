@@ -13,9 +13,11 @@ See `docs/automation-architecture.md` for how automations are authored.
 | name | engine | file | intent | waf | mode |
 |------|--------|------|--------|-----|------|
 | climate-cta-ventilate | HA-automation | automations.yaml | when apartment air degrades (CO2/PM), ask via Telegram to open a window vs run the central A/C, decided by outdoor AQI + temp | med | cta |
+| climate-cta-window-ac-off | HA-automation | automations.yaml | ask to turn off the central A/C when a window opens while it runs (3min debounce + 30min cooldown, no auto-toggle) | low | cta |
 | climate-purifier-living | HA-automation | automations.yaml | auto-run living air purifier on indoor PM, ramp at night to protect bedrooms, stand down when any window open | med | auto |
 | climate-purifier-mamad | HA-automation | automations.yaml | auto-run child-room purifier | med | auto |
 | climate-purifier-master | HA-automation | automations.yaml | auto-run master-bedroom purifier | med | auto |
+| climate-cta-window-ac-off-prompt | HA-script | scripts.yaml | Telegram CTA: a window opened while the central A/C runs — offer to turn the A/C off | low | cta |
 | climate-cta-window-vs-ac | HA-script | scripts.yaml | Telegram CTA: choose open-window vs run central A/C on degraded air | med | cta |
 <!-- AUTOGEN:automations END -->
 

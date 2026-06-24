@@ -77,3 +77,27 @@ climate_cta:
             - action: climate.turn_off
               target:
                 entity_id: climate.smartir_climate_1581
+
+# meta: intent="Telegram CTA: a window opened while the central A/C runs — offer to turn the A/C off"; waf=low; mode=cta
+climate_cta_window_ac:
+  alias: climate-cta-window-ac-off-prompt
+  use_blueprint:
+    path: homeassistant/telegram_confirmable.yaml
+    input:
+      target_chat: !secret telegram_chat_id
+      message: >-
+        {% set wins = {'living balcony': 'binary_sensor.windowlivingroom_contact',
+                       'office': 'binary_sensor.windowyossi_contact'} %}
+        {% set ns = namespace(open=[]) %}
+        {% for name, eid in wins.items() %}
+          {% if is_state(eid, 'on') %}{% set ns.open = ns.open + [name] %}{% endif %}
+        {% endfor %}
+        {% set setpoint = states('input_number.ac_cool_setpoint') | int(24) %}
+        {{ '🪟 ' ~ (ns.open | join(', ') if ns.open else 'A window') ~ ' open while the ❄️ A/C is running (set ' ~ setpoint ~ '°C). Turn the A/C off?' }}
+      confirm_text: "❄️ Turn off A/C"
+      confirm_action:
+        - action: climate.turn_off
+          target:
+            entity_id: climate.smartir_climate_1581
+      dismiss_text: "Keep it on"
+      dismiss_action: []
