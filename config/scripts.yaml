@@ -65,7 +65,7 @@ climate_cta:
       dismiss_action:
         - action: telegram_bot.send_message
           data:
-            target: !secret telegram_chat_id
+            chat_id: !secret telegram_chat_id
             message: "👍 Opening a window — A/C standing down."
         - if:
             - condition: not
