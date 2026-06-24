@@ -7,8 +7,8 @@ climate_cta:
       target_chat: !secret telegram_chat_id
       message: >-
         {% set fav = is_state('binary_sensor.ventilate_favorable', 'on') %}
-        {% set aqi = states('sensor.waqi_REPLACE_ME') %}
-        {% set otemp = state_attr('sensor.waqi_REPLACE_ME', 'temperature') %}
+        {% set aqi = states('sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_air_quality_index') %}
+        {% set otemp = states('sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_temperature') %}
         {% set co2 = [states('sensor.airmonitor2_co2') | float(0),
                       states('sensor.airmonitorlitemaster_co2') | float(0),
                       states('sensor.mamadairmonitor_co2') | float(0)] | max %}
