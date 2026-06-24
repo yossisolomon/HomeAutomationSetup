@@ -51,22 +51,22 @@ climate_cta:
         {{ lines | join('\n') }}
       confirm_text: "❄️ Run A/C"
       confirm_action:
-        - action: climate.set_hvac_mode
-          target:
-            entity_id: climate.smartir_climate_1581
-          data:
-            hvac_mode: cool
+        # Temperature first: ar_smart_ir sends no IR while the unit is off, so this just
+        # stores the setpoint. Then set mode — one IR carrying that temp (one beep, not
+        # two). The blueprint posts the "✅ Run A/C" outcome, so no ack needed here.
         - action: climate.set_temperature
           target:
             entity_id: climate.smartir_climate_1581
           data:
             temperature: "{{ states('input_number.ac_cool_setpoint') | float(24) }}"
+        - action: climate.set_hvac_mode
+          target:
+            entity_id: climate.smartir_climate_1581
+          data:
+            hvac_mode: cool
       dismiss_text: "🪟 Open window"
       dismiss_action:
-        - action: telegram_bot.send_message
-          data:
-            chat_id: !secret telegram_chat_id
-            message: "👍 Opening a window — A/C standing down."
+        # The blueprint posts the "✅ Open window" outcome; just stand the A/C down.
         - if:
             - condition: not
               conditions:
