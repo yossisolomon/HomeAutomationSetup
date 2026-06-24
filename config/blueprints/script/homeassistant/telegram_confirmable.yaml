@@ -57,18 +57,22 @@ sequence:
     data:
       chat_id: !input target_chat
       message: !input message
+      # The "text:/data" shorthand makes HA set callback_data to "/" + data, so the
+      # delivered telegram_callback data is "/CONFIRM_…" / "/DISMISS_…" (leading slash).
+      # The wait + conditions below match that exact "/"-prefixed value. No space after
+      # the comma, else the 2nd button text gets a leading space.
       inline_keyboard:
-        - "{{ confirm_label }}:/{{ token_confirm }}, {{ dismiss_label }}:/{{ token_dismiss }}"
+        - "{{ confirm_label }}:/{{ token_confirm }},{{ dismiss_label }}:/{{ token_dismiss }}"
   - alias: "Await the button press"
     wait_for_trigger:
       - trigger: event
         event_type: telegram_callback
         event_data:
-          data: "{{ token_confirm }}"
+          data: "/{{ token_confirm }}"
       - trigger: event
         event_type: telegram_callback
         event_data:
-          data: "{{ token_dismiss }}"
+          data: "/{{ token_dismiss }}"
     timeout:
       hours: !input timeout_hours
   - alias: "Acknowledge the callback + run the chosen action"
@@ -81,7 +85,7 @@ sequence:
           callback_query_id: "{{ wait.trigger.event.data.id }}"
           message: "Got it"
       - choose:
-          - conditions: "{{ wait.trigger.event.data.data == token_confirm }}"
+          - conditions: "{{ wait.trigger.event.data.data == '/' ~ token_confirm }}"
             sequence: !input confirm_action
-          - conditions: "{{ wait.trigger.event.data.data == token_dismiss }}"
+          - conditions: "{{ wait.trigger.event.data.data == '/' ~ token_dismiss }}"
             sequence: !input dismiss_action
