@@ -273,7 +273,10 @@ def main(argv=None) -> int:
 
     action = plan["action"]
     if action == "none":
-        _log(f"deployed {target[:8]}: no HA-relevant changes (no reload/restart needed)")
+        # Code advanced (docs / grafana / OS-level scripts) but nothing HA-relevant
+        # changed. Still notify — a HEAD-advancing deploy should never be silent, and
+        # OS-level units (e.g. power management) are applied out-of-band on blacky.
+        alert(f"CD: pulled {tag} — no HA reload/restart needed (docs/infra/OS-only change).")
         return 0
 
     # Reload path needs the admin CD token; without it, fall back to a restart.
