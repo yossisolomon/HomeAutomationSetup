@@ -6,15 +6,49 @@ climate_cta:
     input:
       target_chat: !secret telegram_chat_id
       message: >-
+        {# Self-explanatory + debuggable: shows the raw reading behind every decision so
+           a wrong recommendation is traceable to the sensor that drove it. 'n/a' = the
+           sensor is unavailable (so bad/stale data is visible, not silently treated as 0). #}
+        {% set aqi_id = 'sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_air_quality_index' %}
+        {% set temp_id = 'sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_temperature' %}
+        {% set co2_map = {'living': 'sensor.airmonitor2_co2',
+                          'master': 'sensor.airmonitorlitemaster_co2',
+                          'mamad': 'sensor.mamadairmonitor_co2'} %}
+        {% set pm_map = {'living': 'binary_sensor.living_air_bad',
+                         'master': 'binary_sensor.master_air_bad',
+                         'mamad': 'binary_sensor.mamad_air_bad'} %}
+        {% set bad = ['unavailable', 'unknown', 'none'] %}
         {% set fav = is_state('binary_sensor.ventilate_favorable', 'on') %}
-        {% set aqi = states('sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_air_quality_index') %}
-        {% set otemp = states('sensor.kmutzkin_begin_haifa_and_krayot_israel_yshrl_q_mvtsqyn_bgyn_khyph_vqryvt_temperature') %}
-        {% set co2 = [states('sensor.airmonitor2_co2') | float(0),
-                      states('sensor.airmonitorlitemaster_co2') | float(0),
-                      states('sensor.mamadairmonitor_co2') | float(0)] | max %}
-        🏠 Indoor air degrading (CO2 {{ co2 | round }} ppm).
-        Outside: AQI {{ aqi }}, {{ otemp }}°C.
-        {% if fav %}👉 Better option: open a window (clean, cool outside).{% else %}👉 Better option: run the A/C (outside not good for ventilating).{% endif %}
+        {% set aqi_raw = states(aqi_id) %}
+        {% set temp_raw = states(temp_id) %}
+        {% set aqi = aqi_raw | float(-1) %}
+        {% set otemp = temp_raw | float(-999) %}
+        {% set aqi_max = states('input_number.outdoor_aqi_ventilate_max') | float(100) %}
+        {% set tmax = states('input_number.ventilate_max_outdoor_temp') | float(26) %}
+        {% set ns = namespace(co2=[], pm=[]) %}
+        {% for area, eid in co2_map.items() %}
+          {% set v = states(eid) %}
+          {% set hi = v not in bad and v | float(0) >= 1400 %}
+          {% set ns.co2 = ns.co2 + [area ~ ' ' ~ ('n/a' if v in bad else v) ~ (' ⚠️' if hi else '')] %}
+        {% endfor %}
+        {% for area, eid in pm_map.items() %}
+          {% if is_state(eid, 'on') %}{% set ns.pm = ns.pm + [area] %}{% endif %}
+        {% endfor %}
+        {% set why = [] %}
+        {% if not (aqi >= 0 and aqi <= aqi_max) %}{% set why = why + ['outdoor AQI not ok'] %}{% endif %}
+        {% if not (otemp > -999 and otemp <= tmax) %}{% set why = why + ['too warm outside'] %}{% endif %}
+        {% if is_state('binary_sensor.any_window_open', 'on') %}{% set why = why + ['a window is already open'] %}{% endif %}
+        {% set lines = [
+          '🏠 Indoor air degraded — suggest: ' ~ ('🪟 open a window' if fav else '❄️ run the A/C'),
+          '',
+          'CO2 (ppm, ⚠️ = ≥1400): ' ~ (ns.co2 | join(', ')),
+          'High PM: ' ~ (ns.pm | join(', ') if ns.pm else 'none'),
+          'Outside: AQI ' ~ (aqi_raw if aqi >= 0 else 'n/a') ~ ' (need ≤' ~ aqi_max | int ~ '), ' ~ (temp_raw if otemp > -999 else 'n/a') ~ '°C (need ≤' ~ tmax | int ~ ')',
+          '',
+          ('→ outside is clean & cool enough — ventilating beats the A/C.' if fav
+           else '→ ' ~ (why | join('; ')) ~ ' — A/C is the better option.')
+        ] %}
+        {{ lines | join('\n') }}
       confirm_text: "❄️ Run A/C"
       confirm_action:
         - action: climate.set_hvac_mode
