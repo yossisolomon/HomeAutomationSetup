@@ -3,3 +3,9 @@
 climate_cta_cooldown:
   name: Climate CTA Cooldown
   duration: "02:00:00"
+
+# Re-prompt rate-limit for the window-opened-while-A/C-running CTA. 30min: with the
+# automation's 3min open-debounce, this stops a balcony party (repeat open/close) re-nagging.
+climate_window_ac_cooldown:
+  name: Climate Window-AC Cooldown
+  duration: "00:30:00"

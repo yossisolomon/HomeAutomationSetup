@@ -45,6 +45,24 @@ def test_parse_scripts_dict(tmp_path):
     assert entries[0].meta["mode"] == "cta"
 
 
+def test_parse_scripts_multiple_each_keep_meta(tmp_path):
+    f = tmp_path / "scripts.yaml"
+    write(f, '# meta: intent="first cta"; waf=med; mode=cta\n'
+             'first_script:\n'
+             '  alias: "climate-cta-window-vs-ac"\n'
+             '  sequence: []\n'
+             '# meta: intent="second cta"; waf=low; mode=cta\n'
+             'second_script:\n'
+             '  alias: "climate-cta-window-ac-off-prompt"\n'
+             '  sequence: []\n')
+    entries = gen.parse_scripts(f)
+    assert len(entries) == 2
+    by_name = {e.name: e for e in entries}
+    assert by_name["climate-cta-window-vs-ac"].meta["intent"] == "first cta"
+    assert by_name["climate-cta-window-ac-off-prompt"].meta == {
+        "intent": "second cta", "waf": "low", "mode": "cta"}
+
+
 def test_empty_list_file(tmp_path):
     f = tmp_path / "automations.yaml"; write(f, "[]\n")
     assert gen.parse_automations(f) == []
